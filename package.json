@@ -1,0 +1,88 @@
+{
+  "name": "peipl-bill-maker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "next dev",
+    "dev:turbo": "next dev --turbopack",
+    "build": "npx next build && npx next export",
+    "start": "next start",
+    "lint": "biome check",
+    "format": "biome format --write",
+    "electron": "electron .",
+    "electron-dev": "concurrently \"npm run dev\" \"wait-on http://localhost:3000 http://localhost:3001 http://localhost:3002 && electron .\"",
+    "electron-build": "npm run build && electron-builder",
+    "dist": "npm run build && electron-builder --publish=never"
+  },
+  "dependencies": {
+    "autoprefixer": "^10.4.21",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.1",
+    "next": "15.5.0",
+    "postcss": "^8.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-hot-toast": "^2.6.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@tailwindcss/postcss": "^4",
+    "concurrently": "^8.2.2",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.6.4",
+    "tailwindcss": "^4.1.12",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.peipl.billmaker",
+    "productName": "PEIPL Bill Maker",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "out/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/logo.png",
+      "fileAssociations": [
+        {
+          "ext": "json",
+          "name": "PEIPL Bill File",
+          "description": "PEIPL Bill Maker JSON File",
+          "icon": "public/logo.png",
+          "role": "Editor"
+        }
+      ]
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "public/logo.png",
+      "fileAssociations": [
+        {
+          "ext": "json",
+          "name": "PEIPL Bill File",
+          "description": "PEIPL Bill Maker JSON File",
+          "icon": "public/logo.png",
+          "role": "Editor"
+        }
+      ]
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "public/logo.png",
+      "fileAssociations": [
+        {
+          "ext": "json",
+          "name": "PEIPL Bill File",
+          "description": "PEIPL Bill Maker JSON File",
+          "icon": "public/logo.png",
+          "role": "Editor"
+        }
+      ]
+    }
+  }
+}
