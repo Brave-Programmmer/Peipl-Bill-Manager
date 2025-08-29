@@ -17,13 +17,11 @@ A professional bill generation application for Pujari Engineers India Pvt Ltd, a
 
 ## 🚀 Installation
 
-Download and run the Windows installer from:
+Run
 
 ```
-dist.zip
+npx electron-builder
 ```
-
-Follow the on-screen instructions to complete the installation.
 
 ## 📖 Usage
 
