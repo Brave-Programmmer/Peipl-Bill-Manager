@@ -1,5 +1,5 @@
 import React from "react";
-import styles from "./AnimatedToolbarButtons.module.css";
+import styles from "../styles/AnimatedToolbarButtons.module.css";
 
 // Animated, theme-colored floating toolbar for the whole app
 export default function AnimatedToolbarButtons({ onLeft, onMiddle, onRight }) {

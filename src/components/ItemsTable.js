@@ -23,7 +23,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import toast from "react-hot-toast";
 import { create, all } from "mathjs";
-import styles from "./ItemsTable.module.css";
+import styles from "../styles/ItemsTable.module.css";
 
 const math = create(all, { number: "number" });
 
