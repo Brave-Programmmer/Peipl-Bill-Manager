@@ -16,12 +16,17 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onSaveBillFile: (callback) => {
     ipcRenderer.on("save-bill-file", callback);
   },
-  onOpenFileFromCommand: (callback) => {
-    ipcRenderer.on("open-file-from-command", callback);
-  },
+
+  // Listen for file association open events
+  onOpenFile: (callback) => ipcRenderer.on('open-file', (event, payload) => callback(payload)),
+  onOpenFileError: (callback) => ipcRenderer.on('open-file-error', (event, payload) => callback(payload)),
 
   // Remove listeners
   removeAllListeners: (channel) => {
     ipcRenderer.removeAllListeners(channel);
   },
+
+  // File association setup
+  setupFileAssociations: () => ipcRenderer.invoke("setup-file-associations"),
+  openFileAssociationSettings: () => ipcRenderer.invoke("open-file-association-settings"),
 });

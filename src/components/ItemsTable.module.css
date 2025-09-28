@@ -1,0 +1,46 @@
+.dragHandle {
+  cursor: grab;
+  color: #6366f1;
+  font-size: 16px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.15s ease, transform 0.12s ease;
+}
+.dragHandle:hover {
+  background: rgba(99,102,241,0.06);
+  transform: translateY(-1px);
+}
+.btnModern {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 0;
+  border: none;
+  font-weight: 600;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.btnModern:active {
+  transform: translateY(1px) scale(0.997);
+}
+.btnAdd {
+  background: linear-gradient(90deg,#10b981,#06b6d4);
+  color: white;
+}
+.btnCol {
+  background: rgba(99,102,241,0.06);
+  color: #4f46e5;
+  border: 1px solid rgba(99,102,241,0.12);
+}
+.btnDanger {
+  background: linear-gradient(90deg,#fecaca,#f87171);
+  /* color: #7ssf1d1d; */
+}
+.rowHover:hover {
+  background: rgba(99,102,241,0.03);
+}
+.buffered {
+  box-shadow: 0 0 0 3px rgba(250,204,21,0.12);
+  border-radius: 0;
+}

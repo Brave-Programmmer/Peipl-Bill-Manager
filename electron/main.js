@@ -1,36 +1,24 @@
 const { app, BrowserWindow, ipcMain, dialog, Menu } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const http = require("http");
 const url = require("url");
 let mainWindow;
-// Function to check if a port is available
-function checkPort(port) {
-  return new Promise((resolve) => {
-    const server = http.createServer();
-    server.listen(port, () => {
-      server.once("close", () => {
-        resolve(true);
-      });
-      server.close();
-    });
-    server.on("error", () => {
-      resolve(false);
-    });
-  });
+
+// Ensure single instance
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
 }
-
-
-
-// Function to load bill data from file
-async function loadBillFromFile(filePath) {
-  try {
-    const fileContent = fs.readFileSync(filePath, "utf8");
-    const billData = JSON.parse(fileContent);
-    return { success: true, data: billData, filePath };
-  } catch (error) {
-    return { success: false, error: error.message };
-  }
+// Helper: Read JSON file and send to renderer as string
+function sendJsonToRenderer(filePath) {
+  if (!filePath) return;
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (err) {
+      mainWindow?.webContents.send('open-file-error', { error: err.message, filePath });
+    } else {
+      mainWindow?.webContents.send('open-file', { data, filePath });
+    }
+  });
 }
 async function createWindow() {
   mainWindow = new BrowserWindow({
@@ -44,12 +32,12 @@ async function createWindow() {
       preload: path.join(__dirname, "preload.js"),
     },
     icon: path.join(__dirname, "../public/logo.png"),
-    title: "PEIPL Bill Maker",
+    title: "PEIPL Launcher",
     show: false,
   });
 
+  // Always open billing app directly
   if (app.isPackaged) {
-    // Load built Next.js files from /out
     mainWindow.loadURL(
       url.format({
         pathname: path.join(__dirname, "out", "index.html"),
@@ -58,9 +46,30 @@ async function createWindow() {
       })
     );
   } else {
-    // During dev, connect to Next.js dev server
     mainWindow.loadURL("http://localhost:3000");
   }
+
+  // Listen for selection from launcher page
+  const { ipcMain } = require('electron');
+  ipcMain.on('launch-app-section', (event, section) => {
+    if (section === 'billing') {
+      if (app.isPackaged) {
+        mainWindow.loadURL(
+          url.format({
+            pathname: path.join(__dirname, "out", "index.html"),
+            protocol: "file:",
+            slashes: true,
+          })
+        );
+      } else {
+        mainWindow.loadURL("http://localhost:3000");
+      }
+    } else if (section === 'hrdoc') {
+      // Example: open a placeholder HR Doc Settings page
+      mainWindow.loadFile(path.join(__dirname, "hrdoc.html"));
+    }
+    // Add more sections here as needed
+  });
 
   // Show window when ready
   mainWindow.once("ready-to-show", () => {
@@ -202,47 +211,120 @@ ipcMain.handle("save-file-dialog", async (event, billData) => {
   return { success: false, error: "No file path selected" };
 });
 
-// Handle opening file from command line
+// Handle opening file from command line (manual trigger from renderer)
 ipcMain.handle("open-file-from-command", async (event, filePath) => {
-  return await loadBillFromFile(filePath);
+  // Read and send file contents to renderer
+  if (mainWindow && filePath) {
+    sendJsonToRenderer(filePath);
+    return { success: true };
+  }
+  return { success: false, error: "No file path provided" };
 });
 
-// Handle command line arguments for file opening
-app.on("open-file", (event, filePath) => {
-  event.preventDefault();
-
-  if (mainWindow) {
-    mainWindow.webContents.send("open-file-from-command", filePath);
+// Handle file association setup
+ipcMain.handle("setup-file-associations", async () => {
+  try {
+    const { exec } = require("child_process");
+    const path = require("path");
+    
+    return new Promise((resolve) => {
+      // Get the current executable path
+      const exePath = process.execPath;
+      
+      // Use Windows commands to set up file associations
+      const commands = [
+        `ftype PEIPLBillMaker="${exePath}" "%1"`,
+        `assoc .json=PEIPLBillMaker`
+      ];
+      
+      let completed = 0;
+      let hasError = false;
+      
+      commands.forEach((command) => {
+        exec(command, (error, stdout, stderr) => {
+          completed++;
+          
+          if (error) {
+            console.error(`Command failed: ${command}`, error);
+            hasError = true;
+          }
+          
+          if (completed === commands.length) {
+            if (hasError) {
+              resolve({ success: false, error: "Failed to set up file associations. Please try manual setup." });
+            } else {
+              resolve({ success: true, message: "File associations set up successfully!" });
+            }
+          }
+        });
+      });
+    });
+  } catch (error) {
+    console.error("Error setting up file associations:", error);
+    return { success: false, error: error.message };
   }
 });
 
-// Handle second instance (Windows)
-app.on("second-instance", (event, commandLine, workingDirectory) => {
+// Handle opening file association settings
+ipcMain.handle("open-file-association-settings", async () => {
+  try {
+    const { exec } = require("child_process");
+    
+    // Open Windows file association settings
+    exec("rundll32.exe shell32.dll,OpenAs_RunDLL .json", (error) => {
+      if (error) {
+        console.error("Error opening file association settings:", error);
+      }
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error("Error opening file association settings:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// macOS: open-file event
+let pendingFilePath = null;
+app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  pendingFilePath = filePath;
+  if (mainWindow) {
+    sendJsonToRenderer(filePath);
+  }
+});
+
+// Handle second instance (Windows/Linux)
+app.on('second-instance', (event, argv, workingDirectory) => {
   // Someone tried to run a second instance, focus our window instead
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
-
     // Check if there's a file to open
-    const filePath = commandLine.find((arg) => arg.endsWith(".json"));
-    if (filePath) {
-      mainWindow.webContents.send("open-file-from-command", filePath);
+    const fileArg = argv.find(arg => arg.endsWith('.json'));
+    if (fileArg) {
+      sendJsonToRenderer(fileArg);
     }
   }
 });
 
 // App event handlers
+
 app.whenReady().then(() => {
-  // Register handler for all file:// requests
-  // protocol.handle("file", (request) => {
-  //   let url = request.url.substr(7); // strip file://
-  //   const filePath = path.normalize(`${__dirname}/../out/${url}`);
-
-  //   return fs.promises.readFile(filePath);
-  // });
-
   createWindow();
   createMenu();
+
+  // Windows/Linux: check argv for file path
+  const fileArg = process.argv.find(arg => arg.endsWith('.json'));
+  if (fileArg) {
+    sendJsonToRenderer(fileArg);
+  }
+
+  // macOS: handle pending file after window ready
+  if (pendingFilePath) {
+    sendJsonToRenderer(pendingFilePath);
+    pendingFilePath = null;
+  }
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {

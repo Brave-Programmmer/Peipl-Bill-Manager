@@ -95,76 +95,62 @@ export default function Totals({ billData }) {
       {!isOpen ? (
         <button
           onClick={() => setIsOpen(true)}
-          className="flex items-center space-x-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-3 py-2 shadow-xl hover:from-emerald-600 hover:to-teal-700 transition-colors duration-200"
-          title="Show Bill Summary"
+          aria-label="Show bill summary"
+          className="px-4 py-2 rounded bg-[#019b98] text-white font-semibold shadow hover:bg-[#13bdb2] transition"
         >
-          <span>💰</span>
-          <span className="text-xs font-bold">Summary</span>
-          <span className="text-xs font-semibold bg-white/20 px-2 py-0.5">₹{formatCurrency(total)}</span>
+          Show Bill Summary
         </button>
       ) : (
-        <div className="w-80 bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 p-4 shadow-2xl border border-emerald-200">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center shadow">
-                <span className="text-white text-[10px] font-bold">💰</span>
+        <div className="w-80 rounded-xl bg-white border-2 border-[#019b98] shadow-2xl p-4 animate-fadein">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 flex items-center justify-center rounded-full" style={{ background: '#019b98', border: '2px solid #311703' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-900 leading-none">Bill Summary</h3>
-                <p className="text-gray-600 text-[11px] leading-tight">Amounts overview</p>
+                <h3 className="text-base font-bold" style={{ color: '#311703', letterSpacing: '0.5px' }}>Bill Summary</h3>
+                <p className="text-[#019b98] text-xs leading-tight font-semibold">Amounts overview</p>
               </div>
             </div>
-            <button onClick={() => setIsOpen(false)} className="text-xs text-gray-600 hover:text-gray-900">✕</button>
+            <button onClick={() => setIsOpen(false)} className="text-[#311703] hover:text-[#019b98] text-xl font-bold px-2 py-1 rounded transition">✕</button>
           </div>
 
-          <div className="flex justify-between items-center py-2 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-gray-500 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">📊</span>
+          <div className="space-y-2">
+            <div className="flex justify-between items-center py-2 border-b border-[#019b98]/20">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" fill="none" stroke="#019b98" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9h8M8 13h6"/></svg>
+                <span className="text-[#019b98] font-semibold text-sm">Subtotal</span>
               </div>
-              <span className="text-gray-700 font-bold text-sm">Subtotal:</span>
+              <span className="text-base font-bold text-[#311703]">₹{formatCurrency(subtotal)}</span>
             </div>
-            <span className="text-lg font-bold text-gray-900">₹{formatCurrency(subtotal)}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-blue-500 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">🏛️</span>
+            <div className="flex justify-between items-center py-2 border-b border-[#019b98]/20">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" fill="none" stroke="#2563eb" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9h8M8 13h6"/></svg>
+                <span className="text-[#2563eb] font-semibold text-sm">CGST (9%)</span>
               </div>
-              <span className="text-gray-700 font-bold text-sm">CGST (9%):</span>
+              <span className="text-base font-bold text-[#2563eb]">₹{formatCurrency(totalCGST)}</span>
             </div>
-            <span className="text-lg font-bold text-blue-600">₹{formatCurrency(totalCGST)}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-indigo-500 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">🏛️</span>
+            <div className="flex justify-between items-center py-2 border-b border-[#019b98]/20">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" fill="none" stroke="#7c3aed" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9h8M8 13h6"/></svg>
+                <span className="text-[#7c3aed] font-semibold text-sm">SGST (9%)</span>
               </div>
-              <span className="text-gray-700 font-bold text-sm">SGST (9%):</span>
+              <span className="text-base font-bold text-[#7c3aed]">₹{formatCurrency(totalSGST)}</span>
             </div>
-            <span className="text-lg font-bold text-indigo-600">₹{formatCurrency(totalSGST)}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-green-500 flex items-center justify-center">
-                <span className="text-white text-[10px] font-bold">📋</span>
+            <div className="flex justify-between items-center py-2 border-b border-[#019b98]/20">
+              <div className="flex items-center gap-2">
+                <svg width="18" height="18" fill="none" stroke="#10b981" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M8 9h8M8 13h6"/></svg>
+                <span className="text-[#10b981] font-semibold text-sm">Total GST</span>
               </div>
-              <span className="text-gray-700 font-bold text-sm">Total GST:</span>
+              <span className="text-base font-bold text-[#10b981]">₹{formatCurrency(totalGST)}</span>
             </div>
-            <span className="text-lg font-bold text-green-600">₹{formatCurrency(totalGST)}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-4 shadow">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-white/20 flex items-center justify-center">
-                <span className="text-white text-sm font-bold">💎</span>
+            <div className="flex justify-between items-center py-3 rounded-lg bg-gradient-to-r from-[#019b98] to-[#ffd700] px-4 mt-2 shadow">
+              <div className="flex items-center gap-2">
+                <svg width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+                <span className="text-white text-base font-bold">Grand Total</span>
               </div>
-              <span className="text-base font-bold">Grand Total:</span>
+              <span className="text-xl font-bold text-white">₹{formatCurrency(total)}</span>
             </div>
-            <span className="text-xl font-bold">₹{formatCurrency(total)}</span>
           </div>
         </div>
       )}

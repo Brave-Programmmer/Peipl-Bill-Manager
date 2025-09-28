@@ -1,0 +1,103 @@
+.buttonBox {
+  position: relative;
+  width: 12rem;
+  height: 5rem;
+  display: flex;
+}
+.button {
+  width: 3.2rem;
+  height: 3.2rem;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  cursor: pointer;
+  border: 3px solid #311703;
+  border-radius: 5px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: 0.3s;
+  opacity: 0.85;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+.icon {
+  width: 24px;
+  height: 24px;
+  opacity: 0.7;
+  transition: 0.25s;
+}
+.leftBtn {
+  transform: translate(-50%, -50%) rotate(90deg);
+  z-index: 30;
+  background: #ff7f50;
+}
+.middleBtn {
+  transform: translate(-50%, -50%) rotate(-115deg);
+  z-index: 40;
+  background: #ffd700;
+}
+.rightBtn {
+  transform: translate(-50%, -50%) rotate(-45deg);
+  z-index: 50;
+  background: #019b98;
+}
+.rightBtn .icon {
+  animation: active 2.2s linear infinite;
+}
+.touch {
+  position: relative;
+  z-index: 60;
+  height: 100%;
+  flex: 1;
+  cursor: pointer;
+}
+.left:hover ~ .leftBtn {
+  opacity: 1;
+  transform: translate(-170%, -50%) rotate(-90deg) scale(1.05);
+}
+.left:hover ~ .leftBtn .icon {
+  width: 25px;
+  opacity: 0.9;
+}
+.left:active ~ .leftBtn {
+  transform: translate(-170%, -50%) rotate(-90deg) scale(0.9);
+}
+.right:hover ~ .rightBtn {
+  opacity: 1;
+  transform: translate(70%, -50%) rotate(90deg) scale(1.05);
+}
+.right:hover ~ .rightBtn .icon {
+  width: 25px;
+  opacity: 0.9;
+}
+.right:active ~ .rightBtn {
+  transform: translate(70%, -50%) rotate(90deg) scale(0.9);
+}
+.middle:hover ~ .middleBtn {
+  opacity: 1;
+  transform: translate(-50%, -50%) rotate(0deg) scale(1.05);
+}
+.middle:hover ~ .middleBtn .icon {
+  width: 25px;
+  opacity: 0.9;
+}
+.middle:active ~ .middleBtn {
+  transform: translate(-50%, -50%) rotate(0deg) scale(0.9);
+}
+.buttonBox:hover .leftBtn {
+  transform: translate(-170%, -50%) rotate(-90deg);
+}
+.buttonBox:hover .rightBtn {
+  transform: translate(70%, -50%) rotate(90deg);
+}
+.buttonBox:hover .middleBtn {
+  transform: translate(-50%, -50%) rotate(0deg);
+}
+.buttonBox:hover .rightBtn .icon {
+  animation: active 4s linear infinite;
+}
+@keyframes active {
+  to {
+    transform: rotate(360deg);
+  }
+}
