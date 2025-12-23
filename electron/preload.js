@@ -18,8 +18,10 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
 
   // Listen for file association open events
-  onOpenFile: (callback) => ipcRenderer.on('open-file', (event, payload) => callback(payload)),
-  onOpenFileError: (callback) => ipcRenderer.on('open-file-error', (event, payload) => callback(payload)),
+  onOpenFile: (callback) =>
+    ipcRenderer.on("open-file", (event, payload) => callback(payload)),
+  onOpenFileError: (callback) =>
+    ipcRenderer.on("open-file-error", (event, payload) => callback(payload)),
 
   // Remove listeners
   removeAllListeners: (channel) => {
@@ -28,5 +30,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // File association setup
   setupFileAssociations: () => ipcRenderer.invoke("setup-file-associations"),
-  openFileAssociationSettings: () => ipcRenderer.invoke("open-file-association-settings"),
+  openFileAssociationSettings: () =>
+    ipcRenderer.invoke("open-file-association-settings"),
 });

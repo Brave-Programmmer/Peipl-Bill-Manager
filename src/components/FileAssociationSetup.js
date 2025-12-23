@@ -5,171 +5,263 @@ import toast from "react-hot-toast";
 
 export default function FileAssociationSetup({ isVisible, onClose }) {
   const [isSettingUp, setIsSettingUp] = useState(false);
+  const [setupStatus, setSetupStatus] = useState("idle"); // idle, success, error
 
   // Detect if running in Electron
-  const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+  const isElectron = typeof window !== "undefined" && !!window.electronAPI;
 
   const setupFileAssociations = async () => {
     setIsSettingUp(true);
+    setSetupStatus("idle");
     try {
-      if (isElectron && typeof window.electronAPI.setupFileAssociations === 'function') {
+      if (
+        isElectron &&
+        typeof window.electronAPI.setupFileAssociations === "function"
+      ) {
         const result = await window.electronAPI.setupFileAssociations();
         if (result && result.success) {
-          toast.success("File associations set up successfully!");
+          setSetupStatus("success");
+          toast.success(
+            "✅ File associations set up successfully! You can now open JSON bill files directly.",
+            {
+              duration: 5000,
+              icon: "📄",
+            },
+          );
+          // Auto-close after success
+          setTimeout(() => {
+            onClose();
+          }, 2000);
         } else {
-          toast.error(`Failed to set up file associations: ${result?.error || 'Unknown error'}`);
+          setSetupStatus("error");
+          toast.error(
+            `Failed to set up file associations: ${result?.error || "Unknown error"}`,
+            {
+              duration: 5000,
+            },
+          );
         }
       } else if (isElectron) {
-        toast.error("Electron API is missing setupFileAssociations method.");
+        setSetupStatus("error");
+        toast.error(
+          "Electron API is missing setupFileAssociations method. Please try manual setup.",
+        );
       } else {
-        toast("Manual setup required. This feature is only available in the desktop app.", { icon: 'ℹ️' });
+        setSetupStatus("error");
+        toast(
+          "Manual setup required. This feature is only available in the desktop app.",
+          { icon: "ℹ️" },
+        );
       }
     } catch (error) {
       console.error("Error setting up file associations:", error);
-      toast.error("Error setting up file associations. Please try manual setup.");
+      setSetupStatus("error");
+      toast.error(
+        "Error setting up file associations. Please try manual setup.",
+        {
+          duration: 5000,
+        },
+      );
     } finally {
       setIsSettingUp(false);
     }
   };
 
   const openFileAssociationSettings = () => {
-    if (isElectron && typeof window.electronAPI.openFileAssociationSettings === 'function') {
+    if (
+      isElectron &&
+      typeof window.electronAPI.openFileAssociationSettings === "function"
+    ) {
       window.electronAPI.openFileAssociationSettings();
     } else if (isElectron) {
-      toast.error("Electron API is missing openFileAssociationSettings method.");
+      toast.error(
+        "Electron API is missing openFileAssociationSettings method.",
+      );
     } else {
-      toast("Right-click a JSON file, choose 'Open with', then select PEIPL Bill Maker and set as default.", { icon: '📝' });
+      toast(
+        "Right-click a JSON file, choose 'Open with', then select PEIPL Bill Maker and set as default.",
+        { icon: "📝" },
+      );
     }
   };
 
-  if (!isVisible) return null;
-
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-blue-200 via-white to-gray-300 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-3xl shadow-xl border border-gray-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300">
-        <div className="p-8 sm:p-12">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4">
-            <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight drop-shadow-sm">
-              <span className="inline-block align-middle mr-2">🗂️</span>
-              Set Up File Associations
-            </h2>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-red-500 text-3xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-300 rounded-full w-10 h-10 flex items-center justify-center shadow-md"
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="space-y-10">
-            <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-300 rounded-2xl p-6 shadow-md">
-              <h3 className="font-semibold text-blue-800 mb-2">
-                What are File Associations?
-              </h3>
-              <p className="text-blue-700 text-sm">
-                File associations let you double-click JSON files in Windows File Explorer and instantly open them in PEIPL Bill Maker.<br />
-                <span className="font-semibold">Note:</span> Automatic setup only works in the desktop app. For browsers, use manual setup below.
-              </p>
-            </div>
-
-            {/* Automatic Setup */}
-            <div className="border border-gray-200 rounded-2xl p-8 shadow-md bg-white">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                🚀 Automatic Setup (Recommended)
-              </h3>
-              <p className="text-gray-600 text-sm mb-4">
-                This will automatically configure your system to open JSON files with PEIPL Bill Maker.
-              </p>
-              <button
-                onClick={setupFileAssociations}
-                disabled={isSettingUp || !isElectron}
-                className={`bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center space-x-2 ${isSettingUp || !isElectron ? 'opacity-50 cursor-not-allowed' : ''}`}
-                aria-disabled={isSettingUp || !isElectron}
-              >
-                {isSettingUp ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>Setting up...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>🔧</span>
-                    <span>Set Up Automatically</span>
-                    {!isElectron && (
-                      <span className="ml-2 text-xs text-yellow-200 bg-yellow-600 px-2 py-1 rounded">Desktop Only</span>
-                    )}
-                  </>
-                )}
-              </button>
-              {!isElectron && (
-                <p className="text-xs text-yellow-700 mt-2">Automatic setup is only available in the desktop app.</p>
-              )}
-            </div>
-
-            {/* Manual Setup */}
-            <div className="border border-gray-200 rounded-2xl p-8 shadow-md bg-white">
-              <h3 className="text-lg font-semibold text-gray-800 mb-3">
-                📋 Manual Setup
-              </h3>
-              <p className="text-gray-600 text-sm mb-4">
-                If automatic setup doesn't work, you can set up file associations manually.
-              </p>
-              <div className="space-y-3">
+    <>
+      {isVisible && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 max-w-2xl w-full max-h-[90vh] overflow-y-auto transition-all duration-300">
+            <div className="p-8 sm:p-12">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-8 border-b border-gray-200 pb-4">
+                <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight drop-shadow-sm">
+                  <span className="inline-block align-middle mr-3 text-3xl">
+                    📄
+                  </span>
+                  File Associations Setup
+                </h2>
                 <button
-                  onClick={openFileAssociationSettings}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-3 rounded-lg font-medium transition-colors duration-200 flex items-center justify-center space-x-2"
-                  disabled={!isElectron}
-                  aria-disabled={!isElectron}
+                  onClick={onClose}
+                  className="text-gray-400 hover:text-red-500 text-2xl font-bold transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-red-300 rounded-full w-10 h-10 flex items-center justify-center"
+                  aria-label="Close"
                 >
-                  <span>⚙️</span>
-                  <span>Open Windows File Association Settings</span>
-                  {!isElectron && (
-                    <span className="ml-2 text-xs text-yellow-200 bg-yellow-600 px-2 py-1 rounded">Desktop Only</span>
-                  )}
+                  ✕
                 </button>
-                <div className="text-sm text-gray-600">
-                  <p className="font-medium mb-2">Or follow these steps:</p>
-                  <ol className="list-decimal list-inside text-xs divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white shadow-sm">
-                    <li className="py-2 px-3 hover:bg-blue-50 transition-colors duration-150 rounded-t-lg">Right-click any JSON file in Windows File Explorer</li>
-                    <li className="py-2 px-3 hover:bg-blue-50 transition-colors duration-150">Select "Open with" → "Choose another app"</li>
-                    <li className="py-2 px-3 hover:bg-blue-50 transition-colors duration-150">Find and select "PEIPL Bill Maker"</li>
-                    <li className="py-2 px-3 hover:bg-blue-50 transition-colors duration-150">Check "Always use this app to open .json files"</li>
-                    <li className="py-2 px-3 hover:bg-blue-50 transition-colors duration-150 rounded-b-lg">Click "OK"</li>
+              </div>
+
+              {/* Content */}
+              <div className="space-y-6">
+                <div className="bg-blue-50 border-l-4 border-blue-500 rounded p-4">
+                  <h3 className="font-semibold text-blue-900 mb-1">
+                    💡 Quick Start
+                  </h3>
+                  <p className="text-blue-800 text-sm">
+                    Double-click JSON bill files to open them directly in PEIPL
+                    Bill Maker. Set this up once and you're all set!
+                  </p>
+                </div>
+
+                {/* Automatic Setup */}
+                <div className="border border-gray-300 rounded-xl p-6 bg-gradient-to-br from-blue-50 to-white">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">🚀</span>
+                    Automatic Setup (Recommended)
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    One-click setup to configure your system for JSON files.
+                  </p>
+                  <button
+                    onClick={setupFileAssociations}
+                    disabled={isSettingUp || !isElectron}
+                    className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2 ${
+                      setupStatus === "success"
+                        ? "bg-green-500 hover:bg-green-600 text-white shadow-md"
+                        : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 shadow-md"
+                    } ${isSettingUp || !isElectron ? "opacity-50 cursor-not-allowed" : ""}`}
+                    aria-disabled={isSettingUp || !isElectron}
+                  >
+                    {isSettingUp
+                      ? <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <span>Setting up...</span>
+                        </>
+                      : setupStatus === "success"
+                        ? <>
+                            <span className="text-xl">✓</span>
+                            <span>Setup Complete!</span>
+                          </>
+                        : <>
+                            <span>✓</span>
+                            <span>Set Up Automatically</span>
+                            {!isElectron && (
+                              <span className="ml-auto text-xs bg-yellow-500 text-white px-2 py-1 rounded">
+                                Desktop Only
+                              </span>
+                            )}
+                          </>}
+                  </button>
+                  {!isElectron && (
+                    <p className="text-xs text-gray-500 mt-2 italic">
+                      This feature requires the desktop app.
+                    </p>
+                  )}
+                  {setupStatus === "success" && (
+                    <div className="mt-4 p-3 bg-green-100 border border-green-300 rounded-lg">
+                      <p className="text-sm text-green-800 m-0 flex items-center gap-2">
+                        <span className="text-lg">✓</span>
+                        You can now double-click JSON bill files to open them
+                        directly in PEIPL Bill Maker!
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Manual Setup */}
+                <div className="border border-gray-300 rounded-xl p-6">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <span className="text-2xl">⚙️</span>
+                    Manual Setup
+                  </h3>
+                  <p className="text-gray-600 text-sm mb-4">
+                    Follow these simple steps if automatic setup doesn't work.
+                  </p>
+                  <ol className="space-y-2 text-sm text-gray-700">
+                    <li className="flex gap-3 items-start">
+                      <span className="font-bold text-blue-600 flex-shrink-0">
+                        1
+                      </span>
+                      <span>
+                        Right-click any .json file in Windows File Explorer
+                      </span>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <span className="font-bold text-blue-600 flex-shrink-0">
+                        2
+                      </span>
+                      <span>
+                        Select <strong>Open with</strong> →{" "}
+                        <strong>Choose another app</strong>
+                      </span>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <span className="font-bold text-blue-600 flex-shrink-0">
+                        3
+                      </span>
+                      <span>
+                        Find and click <strong>PEIPL Bill Maker</strong>
+                      </span>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <span className="font-bold text-blue-600 flex-shrink-0">
+                        4
+                      </span>
+                      <span>
+                        Check{" "}
+                        <strong>Always use this app to open .json files</strong>
+                      </span>
+                    </li>
+                    <li className="flex gap-3 items-start">
+                      <span className="font-bold text-blue-600 flex-shrink-0">
+                        5
+                      </span>
+                      <span>
+                        Click <strong>OK</strong> ✓
+                      </span>
+                    </li>
                   </ol>
                 </div>
+
+                {/* Testing Tips */}
+                <div className="bg-green-50 border-l-4 border-green-500 rounded p-4">
+                  <h3 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+                    <span className="text-lg">💡</span>
+                    Testing Tips
+                  </h3>
+                  <p className="text-green-700 text-sm mb-3">
+                    After setting up file associations, test them by
+                    double-clicking a JSON file.
+                  </p>
+                  <div className="flex items-center space-x-2 text-sm text-green-600">
+                    <span>✓</span>
+                    <span>
+                      Create a sample JSON file and double-click it to test!
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end space-x-3 mt-12 pt-10 border-t border-gray-200">
+                <button
+                  onClick={onClose}
+                  className="px-8 py-2 text-gray-700 hover:text-white hover:bg-red-500 font-semibold rounded-xl shadow bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300"
+                >
+                  Close
+                </button>
               </div>
             </div>
-
-            {/* Test Section */}
-            <div className="border border-green-300 bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-8 shadow-md">
-              <h3 className="text-lg font-semibold text-green-800 mb-3">
-                ✅ Test Your Setup
-              </h3>
-              <p className="text-green-700 text-sm mb-4">
-                After setting up file associations, test them by double-clicking a JSON file.
-              </p>
-              <div className="flex items-center space-x-2 text-sm text-green-600">
-                <span>💡</span>
-                <span>Create a sample JSON file and double-click it to test!</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex justify-end space-x-3 mt-12 pt-10 border-t border-gray-200">
-            <button
-              onClick={onClose}
-              className="px-8 py-2 text-gray-700 hover:text-white hover:bg-red-500 font-semibold rounded-xl shadow bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-300"
-            >
-              Close
-            </button>
           </div>
         </div>
-      </div>
-    </div>
+      )}
+    </>
   );
 }
-

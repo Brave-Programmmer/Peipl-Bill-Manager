@@ -1,3 +1,8 @@
+import { create, all } from "mathjs";
+import { useState, useMemo, useEffect } from "react";
+import toast from "react-hot-toast";
+import { exportToPDF, printBill } from "../utils/pdfGenerator";
+
 // --- Formula Calculation Logic ---
 // Math.js instance
 const math = create(all, { number: "number" });
@@ -25,45 +30,41 @@ const FormulaUtils = {
     columns.forEach((col) => {
       if (col.type === "formula" && col.formula) {
         try {
-          const scopeArrays = {};
-          columns.forEach((c) => {
-            scopeArrays[c.key] = FormulaUtils.normalizeToArray(r[c.key]);
-          });
-          const maxLen = Math.max(
-            ...Object.values(scopeArrays).map((a) => a.length),
-            1
-          );
+          const scopeArrays = columns.reduce((acc, c) => {
+            acc[c.key] = FormulaUtils.normalizeToArray(r[c.key]);
+            return acc;
+          }, {});
+
+          const lengths = Object.values(scopeArrays).map((a) => a.length).filter(Boolean);
+          const maxLen = lengths.length ? Math.max(...lengths) : 1;
+
           const compiled = compiledFormulas[col.key] || math.compile(col.formula);
-          const results = [];
+          const results = new Array(maxLen);
+
           for (let i = 0; i < maxLen; i++) {
             const scope = {};
-            columns.forEach((c) => {
+            for (let j = 0; j < columns.length; j++) {
+              const c = columns[j];
               const arr = scopeArrays[c.key];
               let v = arr[i] !== undefined ? arr[i] : arr.length ? arr[0] : 0;
               if (v === "" || v == null) v = 0;
               v = Number(v);
-              scope[c.key] = isNaN(v) ? 0 : v;
-            });
+              scope[c.key] = Number.isFinite(v) ? v : 0;
+            }
             const val = compiled.evaluate(scope);
-            results.push(typeof val === "number" ? Number(val.toFixed(2)) : val);
+            results[i] = typeof val === "number" ? Number(val.toFixed(2)) : val;
           }
           r[col.key] = results.length === 1 ? results[0] : results;
         } catch (err) {
           r[col.key] = "Err";
+          // eslint-disable-next-line no-console
+          console.warn("Formula calculation error in BillGenerator:", err && err.message ? err.message : err);
         }
       }
     });
     return r;
   },
 };
-// --- End Formula Calculation Logic ---
-import { create, all } from "mathjs";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
-import { useState, useMemo } from "react";
-import toast from "react-hot-toast";
-
-
 // --- End Formula Calculation Logic ---
 
 export default function BillGenerator({
@@ -74,8 +75,13 @@ export default function BillGenerator({
   onEdit,
   onSaveBill,
 }) {
-  const [isPrintPreview, setIsPrintPreview] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [orderNo, setOrderNo] = useState(billData.orderNo || "");
+
+  // Keep local orderNo in sync when parent billData changes
+  useEffect(() => {
+    setOrderNo(billData.orderNo || "");
+  }, [billData.orderNo]);
 
   // Dynamic table state
   // Enforce default formulas for all bills if not present
@@ -105,7 +111,10 @@ export default function BillGenerator({
   ensureFormula("totalWithGST", "amount + cgstAmount + sgstAmount");
   const tableTitle = billData.tableTitle || "Bill Items";
   // Memoize expensive calculations
-  const compiledFormulas = useMemo(() => FormulaUtils.compileFormulas(columns), [columns]);
+  const compiledFormulas = useMemo(
+    () => FormulaUtils.compileFormulas(columns),
+    [columns]
+  );
   const rows = useMemo(() => {
     return (billData.items || []).map((item, idx) => {
       const withSr = {
@@ -113,7 +122,9 @@ export default function BillGenerator({
         srNoDate:
           item.srNoDate !== undefined
             ? item.srNoDate
-            : `${idx + 1}${item.dates && item.dates[0] ? " / " + item.dates[0] : ""}`,
+            : `${idx + 1}${
+                item.dates && item.dates[0] ? " / " + item.dates[0] : ""
+              }`,
       };
       return FormulaUtils.calculateRow(withSr, columns, compiledFormulas);
     });
@@ -284,128 +295,50 @@ export default function BillGenerator({
   };
 
   // Simple multi-page PDF export by slicing canvas vertically
-  const exportToPDF = async () => {
+  const handleExportToPDF = async () => {
     if (isExporting) return;
     setIsExporting(true);
-    const toastId = toast.loading("Generating PDF...");
-    let loadingDiv = null;
-    try {
-      const billElement = document.getElementById("bill-content");
-      if (!billElement) {
-        toast.error("Bill content not found", { id: toastId });
-        setIsExporting(false);
-        return;
-      }
-
-      // Optional visual loading overlay (ensures user sees something)
-      loadingDiv = document.createElement("div");
-      loadingDiv.style.position = "fixed";
-      loadingDiv.style.top = "0";
-      loadingDiv.style.left = "0";
-      loadingDiv.style.right = "0";
-      loadingDiv.style.bottom = "0";
-      loadingDiv.style.display = "flex";
-      loadingDiv.style.alignItems = "center";
-      loadingDiv.style.justifyContent = "center";
-      loadingDiv.style.background = "rgba(255,255,255,0.8)";
-      loadingDiv.style.zIndex = "9999";
-      loadingDiv.innerHTML = `<div style="text-align:center; font-weight:600; color:#111">Preparing PDF...</div>`;
-      document.body.appendChild(loadingDiv);
-
-      // make sure layout is stable
-      await new Promise((r) => setTimeout(r, 120));
-
-      // Render bill to canvas
-      const canvas = await html2canvas(billElement, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        logging: false,
-      });
-
-      // Prepare jsPDF dimensions
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidthMM = 210;
-      const pageHeightMM = 297;
-
-      // convert canvas to image data
-      const imgData = canvas.toDataURL("image/png");
-
-      // calculate image dimensions in mm, preserving aspect ratio
-      const pxPerMm = canvas.width / pageWidthMM; // px per mm based on width fit
-      const imgHeightMM = canvas.height / pxPerMm;
-
-      if (imgHeightMM <= pageHeightMM) {
-        // single page, center vertically
-        const scaledHeight = imgHeightMM;
-        const scaledWidth = pageWidthMM;
-        const x = 0;
-        const y = (pageHeightMM - scaledHeight) / 2;
-        pdf.addImage(imgData, "PNG", x, y, scaledWidth, scaledHeight);
-      } else {
-        // multi-page: slice canvas by pageHeightPx
-        const pageHeightPx = Math.floor(pxPerMm * pageHeightMM); // how many pixels per A4 page
-        let yPos = 0;
-        while (yPos < canvas.height) {
-          // create a temporary canvas to hold the slice
-          const sliceHeight = Math.min(pageHeightPx, canvas.height - yPos);
-          const sliceCanvas = document.createElement("canvas");
-          sliceCanvas.width = canvas.width;
-          sliceCanvas.height = sliceHeight;
-          const ctx = sliceCanvas.getContext("2d");
-          // copy slice from original canvas
-          ctx.drawImage(
-            canvas,
-            0,
-            yPos,
-            canvas.width,
-            sliceHeight,
-            0,
-            0,
-            canvas.width,
-            sliceHeight
-          );
-          const sliceData = sliceCanvas.toDataURL("image/png");
-          const sliceHeightMM = sliceHeight / pxPerMm;
-
-          if (yPos > 0) pdf.addPage();
-          pdf.addImage(sliceData, "PNG", 0, 0, pageWidthMM, sliceHeightMM);
-          yPos += sliceHeight;
-        }
-      }
-
-      const filename = `bill_${billData.billNumber || "invoice"}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.pdf`;
-      pdf.save(filename);
-      toast.success("PDF generated", { id: toastId });
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      toast.error(
-        "Error generating PDF. Try simpler styles or remove gradients.",
-        { id: toastId }
-      );
-    } finally {
-      setIsExporting(false);
-      if (loadingDiv && loadingDiv.parentNode)
-        loadingDiv.parentNode.removeChild(loadingDiv);
-    }
+    await exportToPDF("bill-content", billData.billNumber, setIsExporting);
   };
 
-  // Print preview flow (opens print dialog)
-  const printBill = () => {
-    setIsPrintPreview(true);
-    // give the browser a moment to apply print CSS
-    setTimeout(() => {
-      window.print();
-    }, 150);
+  // Print the rendered bill canvas directly
+  const handlePrintBill = () => {
+    printBill("bill-content", billData.billNumber);
   };
 
   const handleSaveBill = () => {
     try {
+      // Validate bill data before saving
+      if (!billData.billNumber || billData.billNumber.trim() === "") {
+        toast.error("Bill number is required");
+        return;
+      }
+
+      if (!billData.customerName || billData.customerName.trim() === "") {
+        toast.error("Customer name is required");
+        return;
+      }
+
+      if (!billData.items || billData.items.length === 0) {
+        toast.error("At least one item is required");
+        return;
+      }
+
+      // Check if any items have empty descriptions
+      const emptyItems = billData.items.filter(
+        (item) => !item.description || item.description.trim() === ""
+      );
+
+      if (emptyItems.length > 0) {
+        const proceed = window.confirm(
+          `${emptyItems.length} item(s) have empty descriptions. Continue saving?`
+        );
+        if (!proceed) return;
+      }
+
       const completeBillData = {
         ...billData,
+        orderNo: orderNo,
         companyInfo,
         savedAt: new Date().toISOString(),
         subtotal: calculateSubtotal(),
@@ -413,28 +346,68 @@ export default function BillGenerator({
         totalSGST: calculateTotalSGST(),
         total: calculateTotal(),
         amountInWords: amountInWords(calculateTotal()),
+        version: "2.0",
+        metadata: {
+          itemCount: billData.items.length,
+          pageCount: pagedRows.length,
+          hasManualPages: (billData.manualExtraPages || 0) > 0,
+        },
       };
 
       // call parent handler if provided (app-level save)
-      if (onSaveBill) onSaveBill(completeBillData);
+      if (onSaveBill) {
+        onSaveBill(completeBillData);
+      }
 
-      // also trigger download JSON as convenience
+      // Generate filename with sanitized bill number
+      const sanitizedBillNumber = (billData.billNumber || "invoice")
+        .replace(/[^a-z0-9]/gi, "_")
+        .toLowerCase();
+
+      const timestamp = new Date().toISOString().slice(0, 10);
+      const filename = `bill_${sanitizedBillNumber}_${timestamp}.json`;
+
+      // Create and download JSON file
       const blob = new Blob([JSON.stringify(completeBillData, null, 2)], {
         type: "application/json",
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `bill_${billData.billNumber || "invoice"}_${new Date()
-        .toISOString()
-        .slice(0, 10)}.json`;
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
 
-      toast.success("Bill saved");
+      // Also save to localStorage as backup
+      try {
+        const savedBills = JSON.parse(
+          localStorage.getItem("saved_bills") || "[]"
+        );
+        savedBills.unshift({
+          id: `bill_${Date.now()}`,
+          billNumber: billData.billNumber,
+          customerName: billData.customerName,
+          date: billData.date,
+          total: calculateTotal(),
+          savedAt: completeBillData.savedAt,
+          filename: filename,
+        });
+        // Keep only last 50 bills in localStorage
+        localStorage.setItem(
+          "saved_bills",
+          JSON.stringify(savedBills.slice(0, 50))
+        );
+      } catch (storageErr) {
+        console.warn("Could not save to localStorage:", storageErr);
+      }
+
+      toast.success(`Bill saved successfully as ${filename}`, {
+        duration: 4000,
+        icon: "💾",
+      });
     } catch (err) {
-      console.error(err);
-      toast.error("Error saving bill");
+      console.error("Error saving bill:", err);
+      toast.error(`Failed to save bill: ${err.message}`);
     }
   };
 
@@ -461,18 +434,66 @@ export default function BillGenerator({
             return (
               <td
                 key={col.key}
-                className="border border-gray-950 px-2 py-2 text-xs text-black break-words"
+                style={{
+                  border: "1px solid #000",
+                  padding: "6px 8px",
+                  fontSize: 10,
+                  color: "#000",
+                  verticalAlign: "top",
+                  lineHeight: 1.4,
+                  textAlign: col.type === "number" ? "right" : "left",
+                  backgroundColor: rowIdx % 2 === 0 ? "#fafafa" : "#ffffff",
+                }}
               >
                 {displayValue.map((v, i) => (
-                  <div key={i}>{v}</div>
+                  <div
+                    key={i}
+                    style={{
+                      marginBottom: i < displayValue.length - 1 ? 4 : 0,
+                    }}
+                  >
+                    {v}
+                  </div>
                 ))}
               </td>
             );
           }
+          // Special handling for job description to avoid oversized rows: clamp to 3 lines with ellipsis
+          if (col.key === "description") {
+            return (
+              <td
+                key={col.key}
+                style={{
+                  border: "1px solid #000",
+                  padding: "6px 8px",
+                  fontSize: 10,
+                  color: "#000",
+                  verticalAlign: "top",
+                  lineHeight: 1.4,
+                  maxWidth: 420,
+                  backgroundColor: rowIdx % 2 === 0 ? "#fafafa" : "#ffffff",
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {displayValue}
+              </td>
+            );
+          }
+
           return (
             <td
               key={col.key}
-              className="border border-gray-950 px-2 py-2 text-xs text-black break-words"
+              style={{
+                border: "1px solid #000",
+                padding: "6px 8px",
+                fontSize: 10,
+                color: "#000",
+                verticalAlign: "top",
+                lineHeight: 1.4,
+                textAlign: col.type === "number" ? "right" : "left",
+                backgroundColor: rowIdx % 2 === 0 ? "#fafafa" : "#ffffff",
+              }}
             >
               {displayValue}
             </td>
@@ -498,18 +519,21 @@ export default function BillGenerator({
         className="bg-white"
         style={{
           color: "#000",
-          width: "200mm",
-          minHeight: "280mm",
+          width: "var(--peipl-print-width, 210mm)",
+          minHeight: "var(--peipl-print-height, 297mm)",
           margin: "0 auto",
-          padding: "12mm",
+          padding: "10mm",
+          boxSizing: "border-box",
+          position: "relative",
         }}
       >
         {/* Header */}
         <div
           style={{
-            border: "1px solid #000",
-            padding: "8px",
-            marginBottom: "12px",
+            border: "2px solid #000",
+            padding: "10px",
+            marginBottom: "8px",
+            backgroundColor: "#ffffff",
           }}
         >
           <div style={{ textAlign: "center", padding: "8px" }}>
@@ -543,29 +567,58 @@ export default function BillGenerator({
                 />
               </div>
               <div>
-                <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+                <h1
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    margin: 0,
+                    color: "#000",
+                    letterSpacing: "0.5px",
+                  }}
+                >
                   PUJARI ENGINEERS INDIA (P) LTD.
                 </h1>
-                <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#333",
+                  }}
+                >
                   ONLINE LEAK SEALING • INSULATION HOT TIGHTING • METAL
                   STITCHING
                 </p>
-                <p style={{ margin: 0, fontSize: 10, fontWeight: 600 }}>
+                <p
+                  style={{
+                    margin: "2px 0 0 0",
+                    fontSize: 10,
+                    fontWeight: 600,
+                    color: "#333",
+                  }}
+                >
                   SPARE PARTS SUPPLIERS & LABOUR SUPPLIERS
                 </p>
               </div>
             </div>
 
-            <div style={{ fontSize: 10 }}>
-              <p style={{ margin: 2 }}>
-                <strong>Address:</strong>{" "}
-                {companyInfo?.address ||
-                  "B-21, Flat No.101, Siddeshwar Co-op Hsg. Soc; Sector-9, Gharonda, Ghansoli, Navi, Mumbai -400 701."}
+            <div style={{ fontSize: 10, marginTop: 6 }}>
+              <p style={{ margin: "2px 0", lineHeight: 1.4 }}>
+                <strong style={{ color: "#000" }}>Address:</strong>{" "}
+                <span style={{ color: "#333" }}>
+                  {companyInfo?.address ||
+                    "B-21, Flat No.101, Siddeshwar Co-op Hsg. Soc; Sector-9, Gharonda, Ghansoli, Navi, Mumbai -400 701."}
+                </span>
               </p>
-              <p style={{ margin: 2 }}>
-                <strong>Mobile:</strong> {companyInfo?.phone || "9820027556"}{" "}
-                &nbsp; <strong>Email:</strong>{" "}
-                {companyInfo?.email || "spujari79@gmail.com"}
+              <p style={{ margin: "2px 0", lineHeight: 1.4 }}>
+                <strong style={{ color: "#000" }}>Mobile:</strong>{" "}
+                <span style={{ color: "#333" }}>
+                  {companyInfo?.phone || "9820027556"}
+                </span>{" "}
+                &nbsp; <strong style={{ color: "#000" }}>Email:</strong>{" "}
+                <span style={{ color: "#333" }}>
+                  {companyInfo?.email || "spujari79@gmail.com"}
+                </span>
               </p>
             </div>
           </div>
@@ -580,8 +633,21 @@ export default function BillGenerator({
             marginBottom: 12,
           }}
         >
-          <div style={{ border: "1px solid #000", padding: 8 }}>
-            <p style={{ margin: 0, fontWeight: 700 }}>
+          <div
+            style={{
+              border: "2px solid #000",
+              padding: 10,
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <p
+              style={{
+                margin: 0,
+                fontWeight: 700,
+                fontSize: 11,
+                color: "#000",
+              }}
+            >
               To, {billData.customerName || "Customer Name"}
             </p>
             {billData.plantName && (
@@ -598,7 +664,14 @@ export default function BillGenerator({
             </p>
           </div>
 
-          <div style={{ border: "1px solid #000", padding: 8, fontSize: 10 }}>
+          <div
+            style={{
+              border: "2px solid #000",
+              padding: 10,
+              fontSize: 10,
+              backgroundColor: "#ffffff",
+            }}
+          >
             <div
               style={{
                 display: "flex",
@@ -628,7 +701,7 @@ export default function BillGenerator({
               }}
             >
               <strong>ORDER NO.:</strong>
-              <span>GEMC-511687712601789</span>
+              <span>{billData.orderNo || "GEMC-511687712601789"}</span>
             </div>
             <div
               style={{
@@ -680,25 +753,47 @@ export default function BillGenerator({
         </div>
 
         {/* Dynamic Items Table */}
-        <div style={{ overflowX: "auto", marginBottom: 12 }}>
+        <div style={{ overflowX: "auto", marginBottom: 10 }}>
           <h3
             style={{
               fontWeight: 700,
-              fontSize: 16,
-              background: "#f3f4f6",
-              padding: 4,
+              fontSize: 14,
+              background: "#f8f9fa",
+              padding: "6px 8px",
+              margin: 0,
+              border: "2px solid #000",
+              borderBottom: "none",
+              color: "#000",
             }}
           >
             {tableTitle}{" "}
             {totalPages > 1 ? `— Page ${pageIndex + 1} of ${totalPages}` : ""}
           </h3>
           <table
-            style={{ width: "100%", borderCollapse: "collapse", fontSize: 10 }}
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: 10,
+              border: "2px solid #000",
+              tableLayout: "auto",
+            }}
           >
             <thead>
-              <tr>
+              <tr style={{ backgroundColor: "#d4d4d8", borderBottom: "2px solid #000" }}>
                 {visibleColumns.map((col) => (
-                  <th key={col.key} style={thStyle}>
+                  <th
+                    key={col.key}
+                    style={{
+                      ...thStyle,
+                      backgroundColor: "#d4d4d8",
+                      borderBottom: "2px solid #000",
+                      borderRight: "1px solid #666",
+                      padding: "8px 6px",
+                      textAlign: "center",
+                      fontWeight: 700,
+                      color: "#000",
+                    }}
+                  >
                     {col.label}
                   </th>
                 ))}
@@ -713,50 +808,137 @@ export default function BillGenerator({
           <>
             {/* Totals section only on the last page */}
             <div
-              style={{ marginBottom: 12, border: "1px solid #000", padding: 8 }}
+              style={{
+                marginBottom: 10,
+                border: "2px solid #000",
+                padding: 12,
+                backgroundColor: "#ffffff",
+              }}
             >
               <div
                 style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  display: "grid",
+                  gridTemplateColumns: "1fr auto",
+                  gap: 16,
+                  alignItems: "end",
                 }}
               >
-                <div style={{ flex: 1 }}>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>
-                    Subtotal: ₹{calculateSubtotal().toFixed(2)}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>
-                    CGST (9%): ₹{calculateTotalCGST().toFixed(2)}
-                  </p>
-                  <p style={{ margin: 0, fontSize: 12, fontWeight: 600 }}>
-                    SGST (9%): ₹{calculateTotalSGST().toFixed(2)}
-                  </p>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <p
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                >
+                  <div
                     style={{
-                      margin: 0,
-                      fontSize: 16,
-                      fontWeight: 700,
-                      borderTop: "2px solid #000",
-                      paddingTop: 4,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "4px 0",
                     }}
                   >
-                    Total: ₹{calculateTotal().toFixed(2)}
-                  </p>
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                    >
+                      Subtotal:
+                    </span>
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                    >
+                      ₹{calculateSubtotal().toFixed(2)}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "4px 0",
+                      borderTop: "1px solid #ddd",
+                    }}
+                  >
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                    >
+                      CGST (9%):
+                    </span>
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                    >
+                      ₹{calculateTotalCGST().toFixed(2)}
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "4px 0",
+                      borderTop: "1px solid #ddd",
+                    }}
+                  >
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                    >
+                      SGST (9%):
+                    </span>
+                    <span
+                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                    >
+                      ₹{calculateTotalSGST().toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    textAlign: "right",
+                    padding: "12px 16px",
+                    backgroundColor: "#f8f9fa",
+                    border: "2px solid #000",
+                    minWidth: "200px",
+                  }}
+                >
+                  <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>
+                    GRAND TOTAL
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 18,
+                      fontWeight: 700,
+                      color: "#000",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    ₹{calculateTotal().toFixed(2)}
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Amount in Words & Signature only on the last page */}
             <div
-              style={{ marginBottom: 12, border: "1px solid #000", padding: 8 }}
+              style={{
+                marginBottom: 10,
+                border: "2px solid #000",
+                padding: 12,
+                backgroundColor: "#f8f9fa",
+              }}
             >
-              <strong>Amount in Words: </strong>
-              <span style={{ fontWeight: "bold", fontSize: "1.1em" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "#666",
+                  marginBottom: 4,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Amount in Words
+              </div>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: 12,
+                  color: "#000",
+                  lineHeight: 1.5,
+                }}
+              >
                 {amountInWords(calculateTotal())}
-              </span>
+              </div>
             </div>
 
             <div
@@ -864,10 +1046,12 @@ export default function BillGenerator({
   // small reusable styles
   const thStyle = {
     border: "1px solid #000",
-    padding: "6px",
+    padding: "8px 6px",
     textAlign: "left",
     fontSize: 10,
-    background: "#fff",
+    background: "#f8f9fa",
+    fontWeight: 700,
+    color: "#000",
   };
   const tdStyle = {
     border: "1px solid #000",
@@ -879,26 +1063,57 @@ export default function BillGenerator({
   // Render
   return (
     <>
-      {isPrintPreview ? (
-        <div className="fixed inset-0 bg-white z-50 overflow-y-auto print:overflow-visible">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative border border-gray-900">
           <button
-            onClick={() => setIsPrintPreview(false)}
-            className="print:hidden fixed top-4 left-4 z-50 bg-gray-800 text-white px-3 py-2 text-sm font-semibold"
+            onClick={onClose}
+            className="print:hidden absolute top-4 right-4 z-10 bg-red-600 text-white w-8 h-8 flex items-center justify-center"
           >
-            ← Back
+            ✕
           </button>
-          <div id="bill-content" className="p-4 print:p-0 print:m-0">
-            {/* Render each page for print preview */}
+
+          <div className="absolute top-4 left-4 z-10 flex space-x-2">
+            <button
+              onClick={handleSaveBill}
+              className="bg-green-600 text-white px-4 py-2 text-sm font-semibold"
+            >
+              💾 Save JSON
+            </button>
+            <button
+              onClick={handleExportToPDF}
+              disabled={isExporting}
+              className="bg-blue-600 text-white px-4 py-2 text-sm font-semibold"
+            >
+              {isExporting ? "Generating..." : "📄 PDF"}
+            </button>
+            <button
+              onClick={handlePrintBill}
+              className="bg-purple-600 text-white px-4 py-2 text-sm font-semibold"
+            >
+              🖨️ Print
+            </button>
+
+            <button
+              onClick={onEdit}
+              className="bg-gray-600 text-white px-4 py-2 text-sm font-semibold"
+            >
+              ✏️ Edit
+            </button>
+          </div>
+
+          <div id="bill-content" className="p-6 pt-16">
             {pagedRows.map((pageRows, pageIndex) => (
               <div
-                key={`pp-${pageIndex}`}
-                style={{
-                  width: "200mm",
-                  minHeight: "280mm",
-                  margin: "0 auto",
-                  pageBreakAfter: "always",
-                }}
-              >
+                  key={`page-${pageIndex}`}
+                  style={{
+                    width: "var(--peipl-print-width, 210mm)",
+                    minHeight: "var(--peipl-print-height, 297mm)",
+                    margin: "0 auto 20px auto",
+                    pageBreakAfter: "always",
+                    backgroundColor: "#ffffff",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                >
                 <BillContent
                   rowsForPage={pageRows}
                   pageIndex={pageIndex}
@@ -908,17 +1123,18 @@ export default function BillGenerator({
                 />
               </div>
             ))}
-            {/* manual extra pages */}
             {Array.from({ length: billData.manualExtraPages || 0 }).map(
               (_, i) => (
                 <div
-                  key={`pp-manual-${i}`}
+                  key={`manual-${i}`}
                   style={{
-                    width: "200mm",
-                    minHeight: "280mm",
-                    margin: "0 auto",
-                    pageBreakAfter: "always",
-                  }}
+                      width: "var(--peipl-print-width, 210mm)",
+                      minHeight: "var(--peipl-print-height, 297mm)",
+                      margin: "0 auto 20px auto",
+                      pageBreakAfter: "always",
+                      backgroundColor: "#ffffff",
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                    }}
                 >
                   <div
                     style={{
@@ -937,108 +1153,8 @@ export default function BillGenerator({
               )
             )}
           </div>
-          <style jsx>{`
-            @media print {
-              body {
-                margin: 0;
-              }
-              #bill-content {
-                width: 200mm !important;
-                min-height: 287mm !important;
-              }
-            }e
-          `}</style>
         </div>
-      ) : (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative border border-gray-900">
-            <button
-              onClick={onClose}
-              className="print:hidden absolute top-4 right-4 z-10 bg-red-600 text-white w-8 h-8 flex items-center justify-center"
-            >
-              ✕
-            </button>
-
-            <div className="absolute top-4 left-4 z-10 flex space-x-2">
-              <button
-                onClick={handleSaveBill}
-                className="bg-green-600 text-white px-4 py-2 text-sm font-semibold"
-              >
-                💾 Save JSON
-              </button>
-              <button
-                onClick={exportToPDF}
-                disabled={isExporting}
-                className="bg-blue-600 text-white px-4 py-2 text-sm font-semibold"
-              >
-                {isExporting ? "Generating..." : "📄 PDF"}
-              </button>
-              <button
-                onClick={printBill}
-                className="bg-purple-600 text-white px-4 py-2 text-sm font-semibold"
-              >
-                🖨️ Print
-              </button>
-            
-              <button
-                onClick={onEdit}
-                className="bg-gray-600 text-white px-4 py-2 text-sm font-semibold"
-              >
-                ✏️ Edit
-              </button>
-            </div>
-
-            <div id="bill-content" className="p-6 pt-16">
-              {pagedRows.map((pageRows, pageIndex) => (
-                <div
-                  key={`page-${pageIndex}`}
-                  style={{
-                    width: "200mm",
-                    minHeight: "280mm",
-                    margin: "0 auto",
-                    pageBreakAfter: "always",
-                  }}
-                >
-                  <BillContent
-                    rowsForPage={pageRows}
-                    pageIndex={pageIndex}
-                    totalPages={
-                      pagedRows.length + (billData.manualExtraPages || 0)
-                    }
-                  />
-                </div>
-              ))}
-              {Array.from({ length: billData.manualExtraPages || 0 }).map(
-                (_, i) => (
-                  <div
-                    key={`manual-${i}`}
-                    style={{
-                      width: "200mm",
-                      minHeight: "280mm",
-                      margin: "0 auto",
-                      pageBreakAfter: "always",
-                    }}
-                  >
-                    <div
-                      style={{
-                        border: "1px solid #000",
-                        padding: 8,
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div style={{ textAlign: "center", padding: 8 }}>
-                        <h3 style={{ margin: 0, fontWeight: 700 }}>
-                          {tableTitle} — Page {pagedRows.length + i + 1}
-                        </h3>
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </>
   );
 }

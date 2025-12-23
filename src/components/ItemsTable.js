@@ -1,4 +1,5 @@
 "use client";
+import React from "react";
 import {
   useState,
   useCallback,
@@ -26,6 +27,13 @@ import { create, all } from "mathjs";
 import styles from "../styles/ItemsTable.module.css";
 
 const math = create(all, { number: "number" });
+
+const LONG_TEXT_FIELD_REGEX = /(description|detail|note|remark|scope|work)/i;
+const isLongTextColumn = (column = {}) => {
+  const key = (column.key || "").toLowerCase();
+  const label = (column.label || "").toLowerCase();
+  return LONG_TEXT_FIELD_REGEX.test(key) || LONG_TEXT_FIELD_REGEX.test(label);
+};
 
 export default function ItemsTable({
   billData,
@@ -76,9 +84,7 @@ export default function ItemsTable({
   const [showAddWhereModal, setShowAddWhereModal] = useState(false);
   const [addWhereOption, setAddWhereOption] = useState("current");
   const [addSpecificPage, setAddSpecificPage] = useState(1);
-  const [isRemovingItem, setIsRemovingItem] = useState(null);
   const [showDateModal, setShowDateModal] = useState(null);
-  const [errors, setErrors] = useState({});
   // Presets (saved column + title configurations) stored in localStorage
   const [presets, setPresets] = useState(() => {
     try {
@@ -106,6 +112,15 @@ export default function ItemsTable({
   const [showBillFormatPresets, setShowBillFormatPresets] = useState(false);
   const [billFormatPresetName, setBillFormatPresetName] = useState("");
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  // Print width preset: 'narrow' | 'default' | 'wide'
+  const [printWidthPreset, setPrintWidthPreset] = useState("default");
+
+  const computedPrintWidth =
+    printWidthPreset === "narrow"
+      ? "160mm"
+      : printWidthPreset === "wide"
+      ? "186mm"
+      : "170mm";
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [bulkAddCount, setBulkAddCount] = useState(1);
 
@@ -119,6 +134,18 @@ export default function ItemsTable({
   useEffect(() => {
     setManualExtraPages(billData.manualExtraPages || 0);
   }, [billData.manualExtraPages]);
+
+  // ESC key to exit fullscreen
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === "Escape" && isFullscreen) {
+        toggleFullscreen();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscKey);
+    return () => window.removeEventListener("keydown", handleEscKey);
+  }, [isFullscreen, toggleFullscreen]);
   const basePages = Math.max(1, Math.ceil((items || []).length / rowsPerPage));
   const totalPages = Math.max(1, basePages + (manualExtraPages || 0));
 
@@ -145,7 +172,7 @@ export default function ItemsTable({
       }));
       setShowDateModal(null);
     },
-    [billData.date]
+    [billData.date],
   );
 
   // Ensure every item has a stable id to prevent React remounts which can cause input focus loss
@@ -153,7 +180,7 @@ export default function ItemsTable({
     if (!billData?.items || billData.items.length === 0) return;
     const missing = billData.items.some(
       (it) =>
-        !it || typeof it.id === "undefined" || it.id === null || it.id === ""
+        !it || typeof it.id === "undefined" || it.id === null || it.id === "",
     );
     if (missing) {
       setBillData((prev) => ({
@@ -169,7 +196,7 @@ export default function ItemsTable({
 
   // dnd-kit sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   // Column type modal state
@@ -223,7 +250,7 @@ export default function ItemsTable({
         if (n.isSymbolNode) symbols.push(n.name);
       });
       const unknown = symbols.filter(
-        (s) => !availableCols.includes(s) && isNaN(Number(s))
+        (s) => !availableCols.includes(s) && isNaN(Number(s)),
       );
       if (unknown.length > 0)
         return {
@@ -276,11 +303,11 @@ export default function ItemsTable({
       // If editing existing column
       if (!isNew) {
         const updatedCols = prevCols.map((c) =>
-          c.key === pendingCol.col.key ? { ...c, ...newCol } : c
+          c.key === pendingCol.col.key ? { ...c, ...newCol } : c,
         );
         // If formula changed, recalc all rows
         const newItems = (prev.items || []).map((it) =>
-          calculateRowFormulas(it)
+          calculateRowFormulas(it),
         );
         return { ...prev, columns: updatedCols, items: newItems };
       }
@@ -333,7 +360,7 @@ export default function ItemsTable({
       } else if (newColScope === "specific") {
         const p = Math.min(
           Math.max(1, newColSpecificPage || currentPage),
-          Math.max(1, Math.ceil(items.length / rowsPerPage) || 1)
+          Math.max(1, Math.ceil(items.length / rowsPerPage) || 1),
         );
         const s = (p - 1) * rowsPerPage;
         addKeyRange(s, s + rowsPerPage);
@@ -364,10 +391,10 @@ export default function ItemsTable({
       String(over.id).startsWith("row-")
     ) {
       const oldIndex = items.findIndex(
-        (row, idx) => `row-${row.id || idx}` === active.id
+        (row, idx) => `row-${row.id || idx}` === active.id,
       );
       const newIndex = items.findIndex(
-        (row, idx) => `row-${row.id || idx}` === over.id
+        (row, idx) => `row-${row.id || idx}` === over.id,
       );
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = arrayMove(items, oldIndex, newIndex);
@@ -380,10 +407,10 @@ export default function ItemsTable({
       String(over.id).startsWith("col-")
     ) {
       const oldIndex = columns.findIndex(
-        (col, idx) => `col-${col.key}` === active.id
+        (col, idx) => `col-${col.key}` === active.id,
       );
       const newIndex = columns.findIndex(
-        (col, idx) => `col-${col.key}` === over.id
+        (col, idx) => `col-${col.key}` === over.id,
       );
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = arrayMove(columns, oldIndex, newIndex);
@@ -422,7 +449,6 @@ export default function ItemsTable({
     setPresetName("");
     setShowPresets(false);
   }
-
   function loadPreset(p) {
     if (!p) return;
     setBillData((prev) => {
@@ -445,13 +471,11 @@ export default function ItemsTable({
     toast.success("Preset loaded");
     setShowPresets(false);
   }
-
   function deletePreset(id) {
     const next = (presets || []).filter((x) => x.id !== id);
     persistPresets(next);
     toast.success("Preset deleted");
   }
-
   // Bill Format Preset helpers: persist/load/save/delete complete bill format presets
   function persistBillFormatPresets(list) {
     try {
@@ -463,7 +487,6 @@ export default function ItemsTable({
       console.error("Failed to persist bill format presets", err);
     }
   }
-
   function saveBillFormatPreset(name) {
     const trimmed = (name || "").trim();
     if (!trimmed) {
@@ -493,7 +516,6 @@ export default function ItemsTable({
     setBillFormatPresetName("");
     setShowBillFormatPresets(false);
   }
-
   function loadBillFormatPreset(p) {
     if (!p || !p.billData) return;
 
@@ -526,7 +548,6 @@ export default function ItemsTable({
     toast.success("Bill format preset loaded");
     setShowBillFormatPresets(false);
   }
-
   function deleteBillFormatPreset(id) {
     const next = (billFormatPresets || []).filter((x) => x.id !== id);
     persistBillFormatPresets(next);
@@ -561,96 +582,81 @@ export default function ItemsTable({
     return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  // Basic numeric input validator (allows empty while typing)
-  function validateNumericInput(value, field) {
-    if (value === "" || value === null || typeof value === "undefined")
-      return true;
-    if (field === "date") return true;
-    // allow negative and decimal numbers while typing
-    return /^-?\d*\.?\d*$/.test(String(value));
+  // Safely convert a value to a number (handles strings, commas, empty, null, arrays)
+  function toNumberSafe(v, defaultVal = 0) {
+    if (v === "" || v == null || typeof v === "undefined") return defaultVal;
+    if (Array.isArray(v)) return v.map((x) => toNumberSafe(x, defaultVal));
+    // strip common thousands separators
+    const cleaned = String(v).replace(/,/g, "").trim();
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : defaultVal;
   }
-
+  // Format a number to a fixed number of decimals and return Number type
+  function formatNumber(n, decimals = 2) {
+    if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+    return Number(n.toFixed(decimals));
+  }
   // Calculate formula columns for a single row (mutates and returns a new object)
   function calculateRowFormulas(row) {
     const r = { ...row };
     columns.forEach((col) => {
       if (col.type === "formula" && col.formula) {
         try {
-          // Determine if any dependent column is an array
-          let hasArrayDependency = false;
-          let maxLen = 0;
-          columns.forEach((c) => {
-            const v = r[c.key];
-            if (Array.isArray(v)) {
-              hasArrayDependency = true;
-              maxLen = Math.max(maxLen, v.length);
-            }
-          });
+          const compiled = compiledFormulas[col.key] || math.compile(col.formula);
 
-          const compiled =
-            compiledFormulas[col.key] || math.compile(col.formula);
-
-          // Get all array lengths to ensure consistent calculation
+          // collect lengths of any array-valued dependent columns
           const arrayLengths = columns
-            .map((c) => {
-              const v = r[c.key];
-              return Array.isArray(v) ? v.length : 0;
-            })
+            .map((c) => (Array.isArray(r[c.key]) ? r[c.key].length : 0))
             .filter((len) => len > 0);
 
-          // If no arrays present or all arrays are empty, do single value calculation
+          // No array dependencies: single-value calculation
           if (arrayLengths.length === 0) {
             const scope = {};
             columns.forEach((c) => {
-              let v = r[c.key];
-              if (Array.isArray(v)) v = v[0] || 0;
-              if (v === "" || v == null) scope[c.key] = 0;
-              else {
-                const n = Number(v);
-                scope[c.key] = isNaN(n) ? 0 : n;
+              const v = r[c.key];
+              if (Array.isArray(v)) {
+                scope[c.key] = toNumberSafe(v[0], 0);
+              } else {
+                scope[c.key] = toNumberSafe(v, 0);
               }
             });
             const val = compiled.evaluate(scope);
-            r[col.key] = typeof val === "number" ? Number(val.toFixed(2)) : val;
+            r[col.key] = typeof val === "number" ? formatNumber(val, 2) : val;
           } else {
-            // Get the maximum length of all arrays
-            const maxArrayLen = Math.max(...arrayLengths);
-
-            // Calculate for each index position
-            const results = [];
-            for (let i = 0; i < maxArrayLen; i++) {
+            // array dependencies exist — compute element-wise up to the shortest array
+            // This ensures removing a value also removes the corresponding computed entry.
+            const elemLen = Math.min(...arrayLengths);
+            const results = new Array(elemLen);
+            for (let i = 0; i < elemLen; i++) {
               const scope = {};
               columns.forEach((c) => {
-                let v = r[c.key];
+                const v = r[c.key];
                 if (Array.isArray(v)) {
-                  // Use value at current index or 0 if not available
-                  const itemVal = i < v.length ? v[i] : 0;
-                  scope[c.key] =
-                    itemVal === "" || itemVal == null
-                      ? 0
-                      : isNaN(Number(itemVal))
-                      ? 0
-                      : Number(itemVal);
+                  scope[c.key] = toNumberSafe(v[i], 0);
                 } else {
-                  // Non-array values are used as-is for each calculation
-                  scope[c.key] =
-                    v === "" || v == null
-                      ? 0
-                      : isNaN(Number(v))
-                      ? 0
-                      : Number(v);
+                  scope[c.key] = toNumberSafe(v, 0);
                 }
               });
               const val = compiled.evaluate(scope);
-              results.push(
-                typeof val === "number" ? Number(val.toFixed(2)) : val
-              );
+              results[i] = typeof val === "number" ? formatNumber(val, 2) : val;
             }
             r[col.key] = results;
           }
         } catch (err) {
-          console.debug("Formula eval error", err);
-          r[col.key] = "Err";
+          // On formula errors, fall back to numeric-friendly defaults instead of throwing
+          // If inputs suggest an array result, return an array of zeros; otherwise return 0
+          const arrayLens = columns
+            .map((c) => (Array.isArray(r[c.key]) ? r[c.key].length : 0))
+            .filter((l) => l > 0);
+          if (arrayLens.length > 0) {
+            const maxL = Math.max(...arrayLens);
+            r[col.key] = new Array(maxL).fill(0);
+          } else {
+            r[col.key] = 0;
+          }
+          // Log the error for debugging but avoid noisy console output in production
+          // eslint-disable-next-line no-console
+          console.warn(`Formula evaluation failed for column ${col.key}:`, err.message || err);
         }
       }
     });
@@ -676,7 +682,7 @@ export default function ItemsTable({
       const nextItems = prev.items.map((it) => calculateRowFormulas(it));
       // Only update if different (shallow compare)
       const changed = nextItems.some(
-        (n, i) => JSON.stringify(n) !== JSON.stringify(prev.items[i])
+        (n, i) => JSON.stringify(n) !== JSON.stringify(prev.items[i]),
       );
       return changed ? { ...prev, items: nextItems } : prev;
     });
@@ -692,7 +698,7 @@ export default function ItemsTable({
       // clamp current page if needed
       const newTotal = Math.max(
         1,
-        Math.ceil((items || []).length / rowsPerPage) + next
+        Math.ceil((items || []).length / rowsPerPage) + next,
       );
       setCurrentPage((p) => Math.min(p, newTotal));
       return next;
@@ -740,7 +746,7 @@ export default function ItemsTable({
         const start = (targetPage - 1) * rowsPerPage;
         const existingOnPage = Math.max(
           0,
-          Math.min(rowsPerPage, items.slice(start, start + rowsPerPage).length)
+          Math.min(rowsPerPage, items.slice(start, start + rowsPerPage).length),
         );
         insertIndex = start + existingOnPage;
       }
@@ -789,9 +795,11 @@ export default function ItemsTable({
     const style = {
       transform: CSS.Transform.toString(transform),
       transition,
-      background: isDragging ? "#eef2ff" : undefined,
+      background: isDragging
+        ? "linear-gradient(90deg, rgba(1, 155, 152, 0.1), rgba(1, 155, 152, 0.05))"
+        : undefined,
       color: "#000",
-      boxShadow: isDragging ? "0 12px 30px rgba(99,102,241,0.14)" : undefined,
+      boxShadow: isDragging ? "0 12px 30px rgba(1, 155, 152, 0.2)" : undefined,
       userSelect: isDragging ? "none" : undefined,
       cursor: "grab",
     };
@@ -801,9 +809,9 @@ export default function ItemsTable({
         style={style}
         {...attributes}
         {...listeners}
-        className={`border-b border-gray-100 group transition-all duration-200 animate-fadein ${
+        className={`border-b border-gray-200 group transition-all duration-200 hover:bg-gradient-to-r hover:from-[#019b98]/03 hover:to-[#019b98]/02 ${
           isDragging ? "dragging-row dragging" : ""
-        }`}
+        } ${rowIdx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}
       >
         {children}
       </tr>
@@ -824,10 +832,13 @@ export default function ItemsTable({
     const style = {
       transform: CSS.Transform.toString(transform),
       transition,
-      background: isDragging ? "#eef2ff" : undefined,
-      color: "#000",
-      boxShadow: isDragging ? "0 8px 20px rgba(99,102,241,0.10)" : undefined,
+      background: isDragging
+        ? "linear-gradient(135deg, #e6fcfa 0%, #d1fae5 100%)"
+        : undefined,
+      color: isDragging ? "#0a7a78" : "#000",
+      boxShadow: isDragging ? "0 8px 20px rgba(1, 155, 152, 0.25)" : undefined,
       userSelect: isDragging ? "none" : undefined,
+      borderColor: isDragging ? "#019b98" : undefined,
       cursor: "grab",
       minWidth: 80,
     };
@@ -919,10 +930,11 @@ export default function ItemsTable({
   }) {
     // Multi-value support: if displayValue is an array, render multiple inputs
     const isArray = Array.isArray(displayValue);
+    const isLongTextField = isLongTextColumn(col);
     const [localValues, setLocalValues] = useState(
       isArray
         ? displayValue.map((v) => String(v ?? ""))
-        : [String(displayValue ?? "")]
+        : [String(displayValue ?? "")],
     );
     useEffect(() => {
       if (isArray) {
@@ -932,17 +944,37 @@ export default function ItemsTable({
       }
     }, [displayValue, isArray]);
 
+    // Modern input highlight state
+    const [focusedIdx, setFocusedIdx] = useState(-1);
+    // Use React refs for robust navigation
+    const inputRefs = useMemo(
+      () => localValues.map(() => React.createRef()),
+      [localValues.length],
+    );
+
+    useEffect(() => {
+      if (!isLongTextField) return;
+      inputRefs.forEach((ref) => {
+        if (ref.current) {
+          ref.current.style.height = "auto";
+          const maxHeight = 320;
+          ref.current.style.height = `${Math.min(
+            ref.current.scrollHeight,
+            maxHeight,
+          )}px`;
+        }
+      });
+    }, [inputRefs, localValues, isLongTextField]);
+
     const commit = (idx = null) => {
       if (readOnly) return;
       let valuesToSave = localValues;
-      // Convert number fields
       if (inputType === "number") {
         valuesToSave = localValues.map((v) => {
           const numValue = parseFloat(v);
           return isNaN(numValue) ? 0 : numValue;
         });
       }
-      // If only one value and not array in data, save as single value
       let valueToSave =
         valuesToSave.length === 1 && !isArray ? valuesToSave[0] : valuesToSave;
       updateItemAtIndex(rowIdx, col.key, valueToSave);
@@ -958,92 +990,233 @@ export default function ItemsTable({
     };
 
     const handleAddValue = () => {
-      setLocalValues((prev) => [...prev, ""]);
+      setLocalValues((prev) => {
+        const arr = [...prev, ""];
+        // Persist the new array into billData so formulas recalc immediately
+        let valueToSave = arr.length === 1 ? arr[0] : arr;
+        if (inputType === "number") {
+          const nums = arr.map((v) => {
+            const n = parseFloat(v);
+            return isNaN(n) ? 0 : n;
+          });
+          valueToSave = nums.length === 1 ? nums[0] : nums;
+        }
+        try {
+          updateItemAtIndex(rowIdx, col.key, valueToSave);
+        } catch (e) {
+          // avoid breaking UI if update fails
+          // eslint-disable-next-line no-console
+          console.warn("Failed to persist added value:", e.message || e);
+        }
+        return arr;
+      });
     };
     // Highlight the + button for refNo and rate columns
     const highlightAdd = col.key === "refNo" || col.key === "rate";
     const handleRemoveValue = (idx) => {
       setLocalValues((prev) => {
         const arr = prev.filter((_, i) => i !== idx);
-        // Commit immediately after removal
-        // If only one value left, save as single value, else as array
-        let valueToSave = arr.length === 1 ? arr[0] : arr;
-        if (inputType === "number") {
-          valueToSave = arr.map((v) => {
-            const numValue = parseFloat(v);
-            return isNaN(numValue) ? 0 : numValue;
+        // Persist change across the whole item: remove index `idx` from any array-valued column
+        setBillData((prevBill) => {
+          const items = [...(prevBill.items || [])];
+          const target = items[rowIdx] ? { ...items[rowIdx] } : { id: generateUniqueId() };
+
+          // For every column, if the value is an array, remove element at idx
+          columns.forEach((c) => {
+            const val = target[c.key];
+            if (Array.isArray(val)) {
+              const newArr = val.filter((_, i) => i !== idx);
+              // Normalize single-element arrays to scalar as earlier logic
+              if (newArr.length === 0) target[c.key] = "";
+              else if (newArr.length === 1) {
+                // preserve numeric types for number columns
+                target[c.key] = c.type === "number" ? toNumberSafe(newArr[0], 0) : newArr[0];
+              } else {
+                // For number columns, convert items to numbers
+                target[c.key] = c.type === "number" ? newArr.map((v) => toNumberSafe(v, 0)) : newArr;
+              }
+            }
           });
-          if (valueToSave.length === 1) valueToSave = valueToSave[0];
-        }
-        updateItemAtIndex(rowIdx, col.key, valueToSave);
+
+          items[rowIdx] = calculateRowFormulas(target);
+          return { ...prevBill, items };
+        });
+
+        // Update the cell-local values and return new array for UI
         return arr;
       });
     };
 
     // Input props helper
     const getInputProps = (idx) => {
-      const baseProps = {
+      return {
         value: localValues[idx],
         onChange: (e) => handleInputChange(e, idx),
-        onBlur: () => commit(idx),
+        onBlur: () => {
+          commit(idx);
+          setFocusedIdx(-1);
+        },
+        onFocus: () => setFocusedIdx(idx),
+        onClick: (e) => {
+          e.target.select?.();
+          setFocusedIdx(idx);
+        },
+        onMouseDown: (e) => {
+          if (readOnly) return;
+          try {
+            const ref = inputRefs[idx];
+            if (ref && ref.current) {
+              // focus on mouse down so single click begins editing
+              ref.current.focus();
+              ref.current.select?.();
+              setFocusedIdx(idx);
+            }
+          } catch (err) {
+            // ignore
+          }
+        },
+        ref: inputRefs[idx],
         onKeyDown: (e) => {
           if (readOnly) return;
+          // Helper: find next editable element in the same row
+          function findNextEditable(currentEl, forward = true) {
+            const td = currentEl?.closest("td");
+            if (!td) return null;
+            let nextTd = forward
+              ? td.nextElementSibling
+              : td.previousElementSibling;
+            while (nextTd) {
+              // Find first editable element: input, textarea, or [contenteditable]
+              const editable = nextTd.querySelector(
+                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']",
+              );
+              if (editable) return editable;
+              nextTd = forward
+                ? nextTd.nextElementSibling
+                : nextTd.previousElementSibling;
+            }
+            return null;
+          }
+          // Helper: find first editable element in next row
+          function findFirstEditableInNextRow(currentEl) {
+            const tr = currentEl?.closest("tr");
+            const nextTr = tr?.nextElementSibling;
+            if (nextTr) {
+              return nextTr.querySelector(
+                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']",
+              );
+            }
+            return null;
+          }
           if (e.key === "Enter") {
+            if (isLongTextField && e.shiftKey) {
+              // Allow Shift+Enter to insert a newline without leaving the cell
+              return;
+            }
             e.preventDefault();
             commit(idx);
+            // Auto-switch to next input in the cell
+            if (inputRefs[idx + 1] && inputRefs[idx + 1].current) {
+              inputRefs[idx + 1].current.focus();
+              inputRefs[idx + 1].current.select?.();
+              setFocusedIdx(idx + 1);
+            } else {
+              // Try to focus next editable element in the row
+              const currentEl = inputRefs[idx].current;
+              const nextEditable = findNextEditable(currentEl, true);
+              if (nextEditable) {
+                nextEditable.focus();
+                nextEditable.select?.();
+                setFocusedIdx(-1);
+                return;
+              }
+              // If no more in row, focus first editable in next row
+              const nextRowEditable = findFirstEditableInNextRow(currentEl);
+              if (nextRowEditable) {
+                nextRowEditable.focus();
+                nextRowEditable.select?.();
+                setFocusedIdx(-1);
+              }
+            }
+          } else if (e.key === "Tab") {
+            // Tab: move to next cell, Shift+Tab: previous cell
+            e.preventDefault();
+            const currentEl = inputRefs[idx].current;
+            const targetEditable = findNextEditable(
+              currentEl,
+              !e.shiftKey ? true : false,
+            );
+            if (targetEditable) {
+              targetEditable.focus();
+              targetEditable.select?.();
+              setFocusedIdx(-1);
+            } else {
+              // If no more cells, move to next row
+              const nextRowEditable = findFirstEditableInNextRow(currentEl);
+              if (nextRowEditable) {
+                nextRowEditable.focus();
+                nextRowEditable.select?.();
+                setFocusedIdx(-1);
+              }
+            }
           } else if (e.key === "Escape") {
             e.preventDefault();
             setLocalValues(
               isArray
                 ? displayValue.map((v) => String(v ?? ""))
-                : [String(displayValue ?? "")]
+                : [String(displayValue ?? "")],
             );
+            setFocusedIdx(-1);
           }
         },
-        className: `w-full border border-gray-200 rounded px-2 py-1 text-xs focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all ${
-          readOnly ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
+        className: `w-full border border-gray-200 rounded px-2 py-1 text-xs transition-all duration-150 outline-none focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white focus:shadow-[0_0_0_2px_#38bdf8] ${
+          focusedIdx === idx
+            ? "ring-2 ring-blue-400 bg-blue-50 shadow-[0_0_0_2px_#38bdf8]"
+            : ""
+        } ${readOnly ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""} ${
+          isLongTextField ? "leading-snug" : ""
         }`,
         placeholder: col.label,
         readOnly: readOnly,
         tabIndex: readOnly ? -1 : 0,
-        style: { color: "#000" },
+        style: {
+          color: "#000",
+          whiteSpace: isLongTextField ? "pre-wrap" : undefined,
+          resize: isLongTextField ? "vertical" : undefined,
+          minHeight: isLongTextField ? 48 : undefined,
+          maxHeight: isLongTextField ? 320 : undefined,
+          lineHeight: isLongTextField ? 1.4 : undefined,
+          overflowWrap: isLongTextField ? "anywhere" : undefined,
+        },
         autoComplete: "off",
       };
-      switch (inputType) {
-        case "number":
-          return {
-            ...baseProps,
-            type: "text",
-            inputMode: "decimal",
-            pattern: "[0-9]*\\.?[0-9]*",
-          };
-        case "date":
-          return {
-            ...baseProps,
-            type: "date",
-          };
-        case "formula":
-          return {
-            ...baseProps,
-            type: "text",
-            readOnly: true,
-            className: `${baseProps.className} bg-gray-50 cursor-not-allowed`,
-          };
-        default:
-          return {
-            ...baseProps,
-            type: "text",
-          };
-      }
     };
 
     // Render: always show the + button for editable cells
     if (!readOnly) {
       return (
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 w-full min-w-0">
           {localValues.map((val, idx) => (
-            <div key={idx} className="flex items-center gap-1">
-              <input {...getInputProps(idx)} />
+            <div key={idx} className="flex items-start gap-1 w-full min-w-0">
+              {(() => {
+                const inputProps = getInputProps(idx);
+                const { style: baseStyle, ...rest } = inputProps;
+                const rowCount = isLongTextField
+                  ? Math.min(12, Math.max(3, val.split(/\r?\n/).length))
+                  : undefined;
+                const InputComponent = isLongTextField ? "textarea" : "input";
+                return (
+                  <InputComponent
+                    {...rest}
+                    style={{
+                      ...baseStyle,
+                      width: "100%",
+                      minWidth: 0,
+                    }}
+                    rows={isLongTextField ? rowCount : undefined}
+                  />
+                );
+              })()}
               {localValues.length > 1 && (
                 <button
                   type="button"
@@ -1114,16 +1287,35 @@ export default function ItemsTable({
         </div>
       );
     }
-    return <input {...getInputProps(0)} />;
+    const inputProps = getInputProps(0);
+    const { style: baseStyle, ...rest } = inputProps;
+    const InputComponent = isLongTextField ? "textarea" : "input";
+    const rowCount = isLongTextField
+      ? Math.min(
+          12,
+          Math.max(3, String(displayValue ?? "").split(/\r?\n/).length),
+        )
+      : undefined;
+    return (
+      <InputComponent
+        {...rest}
+        style={{
+          ...baseStyle,
+          width: "100%",
+          minWidth: 0,
+        }}
+        rows={isLongTextField ? rowCount : undefined}
+      />
+    );
   }
 
   return (
     <div
       className={`${
         isFullscreen
-          ? "fixed inset-0 z-50 bg-white p-4 overflow-auto"
+          ? "fixed inset-0 z-50 bg-white p-6 overflow-auto animate-fade-in"
           : "p-6 max-w-full"
-      }`}
+      } transition-all duration-300`}
     >
       {/* Print-safe table: never overflow horizontally in print */}
       <style jsx global>{`
@@ -1132,10 +1324,30 @@ export default function ItemsTable({
           .print-safe-table * {
             font-size: 10px !important;
             table-layout: fixed !important;
-            max-width: 100vw !important;
+            /* Use configurable print width (default 186mm) and center */
+            --peipl-print-width: 170mm !important;
+            max-width: var(--peipl-print-width) !important;
+            width: 100% !important;
+            margin-left: auto !important;
+            margin-right: auto !important;
             word-break: break-word !important;
             white-space: pre-wrap !important;
             overflow: visible !important;
+          }
+          /* Print-only: hide everything except the print content area to avoid modal/container scaling */
+          body * {
+            visibility: hidden !important;
+          }
+          #print-content,
+          #print-content * {
+            visibility: visible !important;
+          }
+          #print-content {
+            /* Use normal flow so browser respects @page margins; center via auto margins */
+            position: static !important;
+            width: var(--peipl-print-width) !important;
+            margin: 15mm auto !important;
+            box-sizing: border-box !important;
           }
           .print-safe-table th,
           .print-safe-table td {
@@ -1247,12 +1459,12 @@ export default function ItemsTable({
               setNewColLabel(`Column ${columns.length + 1}`);
               setNewColScope("current");
               setNewColSpecificPage(
-                Math.min(Math.max(1, currentPage), totalPages)
+                Math.min(Math.max(1, currentPage), totalPages),
               );
               setShowColTypeModal(true);
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2"
-            title="Add Column"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-md hover:shadow-lg hover:bg-[#019b98] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2"
+            title="Add a new column to the table"
           >
             <svg
               width="18"
@@ -1272,8 +1484,8 @@ export default function ItemsTable({
           <div className="relative group">
             <button
               onClick={openAddRowFlow}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#10b981] bg-[#ecfdf5] text-[#10b981] font-semibold shadow-sm hover:bg-[#10b981] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#10b981] focus:ring-offset-2"
-              title="Add Row"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#10b981] bg-[#ecfdf5] text-[#10b981] font-semibold shadow-md hover:shadow-lg hover:bg-[#10b981] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#10b981] focus:ring-offset-2"
+              title="Add a new row to the table"
             >
               <svg
                 width="18"
@@ -1318,71 +1530,26 @@ export default function ItemsTable({
                         ...prev,
                         items: [...(prev.items || []), newItem],
                       }));
-                      toast.success("Row added successfully!");
+                      toast.success("New row added!", {
+                        icon: "✅",
+                        duration: 2000,
+                      });
                     }}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-gray-100 rounded"
+                    className="w-full text-left px-3 py-2 text-sm font-semibold bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 text-green-700 rounded border border-green-200 transition-all duration-200 hover:shadow-md"
                   >
-                    ➕ Add Empty Row
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newItem = {
-                        id: generateUniqueId(),
-                        description: "Service Item",
-                        sacHsn: "998314",
-                        quantity: 1,
-                        unit: "PCS",
-                        rate: 1000,
-                        amount: 1000,
-                        cgstRate: 9,
-                        cgstAmount: 90,
-                        sgstRate: 9,
-                        sgstAmount: 90,
-                        totalWithGST: 1180,
-                        dates: [new Date().toISOString().split("T")[0]],
-                      };
-                      setBillData((prev) => ({
-                        ...prev,
-                        items: [...(prev.items || []), newItem],
-                      }));
-                      toast.success("Sample row added!");
-                    }}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-gray-100 rounded"
-                  >
-                    📝 Add Sample Row
-                  </button>
-                  <button
-                    onClick={() => {
-                      const newItem = {
-                        id: generateUniqueId(),
-                        description: "Product Item",
-                        sacHsn: "8471",
-                        quantity: 1,
-                        unit: "PCS",
-                        rate: 500,
-                        amount: 500,
-                        cgstRate: 9,
-                        cgstAmount: 45,
-                        sgstRate: 9,
-                        sgstAmount: 45,
-                        totalWithGST: 590,
-                        dates: [new Date().toISOString().split("T")[0]],
-                      };
-                      setBillData((prev) => ({
-                        ...prev,
-                        items: [...(prev.items || []), newItem],
-                      }));
-                      toast.success("Product row added!");
-                    }}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-gray-100 rounded"
-                  >
-                    📦 Add Product Row
+                    <span className="flex items-center gap-2">
+                      <span className="text-lg">➕</span>
+                      <span>Add New Row</span>
+                    </span>
                   </button>
                   <button
                     onClick={() => setShowBulkAddModal(true)}
-                    className="w-full text-left px-2 py-1 text-sm hover:bg-gray-100 rounded border-t border-gray-200 mt-1 pt-1"
+                    className="w-full text-left px-3 py-2 text-sm font-medium hover:bg-gray-100 rounded border-t border-gray-200 mt-2 pt-2 transition-all duration-150"
                   >
-                    🔢 Bulk Add Rows
+                    <span className="flex items-center gap-2">
+                      <span className="text-base">🔢</span>
+                      <span>Bulk Add Rows</span>
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1391,8 +1558,8 @@ export default function ItemsTable({
 
           <button
             onClick={() => setShowBillFormatPresets(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#f59e0b] bg-[#fef3c7] text-[#f59e0b] font-semibold shadow-sm hover:bg-[#f59e0b] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2"
-            title="Bill Format Presets"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#f59e0b] bg-[#fef3c7] text-[#f59e0b] font-semibold shadow-md hover:shadow-lg hover:bg-[#f59e0b] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#f59e0b] focus:ring-offset-2"
+            title="Save and load bill format templates"
           >
             <svg
               width="18"
@@ -1413,8 +1580,8 @@ export default function ItemsTable({
 
           <button
             onClick={() => setShowPrintPreview(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#6b7280] bg-[#f9fafb] text-[#6b7280] font-semibold shadow-sm hover:bg-[#6b7280] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#6b7280] focus:ring-offset-2"
-            title="Print Preview"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#6b7280] bg-[#f9fafb] text-[#6b7280] font-semibold shadow-md hover:shadow-lg hover:bg-[#6b7280] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#6b7280] focus:ring-offset-2"
+            title="Preview and print your bill"
           >
             <svg
               width="18"
@@ -1435,8 +1602,12 @@ export default function ItemsTable({
 
           <button
             onClick={toggleFullscreen}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#8b5cf6] bg-[#f3f4f6] text-[#8b5cf6] font-semibold shadow-sm hover:bg-[#8b5cf6] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#8b5cf6] focus:ring-offset-2"
-            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 font-semibold shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              isFullscreen
+                ? "border-red-500 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white focus:ring-red-500 animate-pulse-glow"
+                : "border-[#8b5cf6] bg-[#f3f4f6] text-[#8b5cf6] hover:bg-[#8b5cf6] hover:text-white focus:ring-[#8b5cf6]"
+            }`}
+            title={isFullscreen ? "Exit Fullscreen (ESC)" : "Enter Fullscreen"}
           >
             <svg
               width="18"
@@ -1448,62 +1619,169 @@ export default function ItemsTable({
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              {isFullscreen ? (
-                <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
-              ) : (
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />
-              )}
+              {isFullscreen
+                ? <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" />
+                : <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3" />}
             </svg>
             <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
           </button>
+
+          <div className="relative group">
+            <button
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#6366f1] bg-[#eef2ff] text-[#6366f1] font-semibold shadow-md hover:shadow-lg hover:bg-[#6366f1] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:ring-offset-2"
+              title="View keyboard shortcuts and tips"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              <span>Help</span>
+            </button>
+
+            {/* Keyboard Shortcuts Tooltip */}
+            <div className="absolute bottom-full right-0 mb-2 w-80 bg-white border border-gray-300 rounded-lg shadow-2xl z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
+              <div className="p-4 bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white rounded-t-lg">
+                <h4 className="font-bold text-sm m-0 flex items-center gap-2">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                    <polyline points="13 2 13 9 20 9" />
+                  </svg>
+                  Keyboard Shortcuts
+                </h4>
+              </div>
+              <div className="p-4 space-y-3 text-sm">
+                <div>
+                  <div className="font-semibold text-gray-700 mb-2">
+                    Editing:
+                  </div>
+                  <div className="space-y-1 text-gray-600">
+                    <div className="flex justify-between items-start">
+                      <span>Double-click cell</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Edit
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Tab</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Next cell
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Shift+Tab</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Prev cell
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Enter</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Confirm edit
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Esc</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Cancel edit
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-3">
+                  <div className="font-semibold text-gray-700 mb-2">
+                    Features:
+                  </div>
+                  <div className="space-y-1 text-gray-600">
+                    <div className="flex justify-between items-start">
+                      <span>Drag rows</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Reorder
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Click formula cell</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Math expressions
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-start">
+                      <span>Esc (Fullscreen)</span>
+                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
+                        Exit fullscreen
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-200 pt-3">
+                  <div className="font-semibold text-gray-700 mb-2">Tips:</div>
+                  <ul className="text-gray-600 space-y-1 list-disc list-inside">
+                    <li>
+                      Use formulas like{" "}
+                      <span className="font-mono bg-gray-100 px-1">
+                        quantity*rate
+                      </span>
+                    </li>
+                    <li>Columns auto-calculate based on formulas</li>
+                    <li>Save formats as presets for reuse</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div className="bg-white shadow-xl border border-[#019b98]/30 rounded-xl overflow-hidden mt-4">
         <div className="overflow-x-auto max-w-full">
-          <h3 className="text-lg font-bold mb-2 flex items-center gap-2">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-[#019b98]"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14,2 14,8 20,8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10,9 9,9 8,9" />
-            </svg>
-            <input
-              type="text"
-              value={tableTitle}
-              onChange={(e) =>
-                setBillData((prev) => ({ ...prev, tableTitle: e.target.value }))
-              }
-              className="font-bold text-lg border-none bg-slate-50 w-full rounded px-2 py-1 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
-              placeholder="Table Title"
-            />
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="text-gray-400"
-              title="Click to edit"
-            >
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-          </h3>
+          <div className="bg-gradient-to-r from-[#019b98]/10 to-[#0a7a78]/10 border-b border-[#019b98]/20 px-6 py-4">
+            <h3 className="text-lg font-bold mb-0 flex items-center gap-2">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-[#019b98]"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10,9 9,9 8,9" />
+              </svg>
+              <input
+                type="text"
+                value={tableTitle}
+                onChange={(e) =>
+                  setBillData((prev) => ({
+                    ...prev,
+                    tableTitle: e.target.value,
+                  }))
+                }
+                className="font-bold text-lg border-none bg-transparent w-full rounded px-2 py-1 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
+                placeholder="Table Title"
+              />
+            </h3>
+          </div>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -1518,14 +1796,38 @@ export default function ItemsTable({
                 strategy={verticalListSortingStrategy}
               >
                 <table
-                  className="w-full text-xs print-safe-table border-separate border-spacing-0 min-w-max"
-                  style={{ color: "#000", tableLayout: "auto" }}
+                  className="w-full text-xs print-safe-table border-separate border-spacing-0 min-w-max rounded-lg overflow-hidden"
+                  style={{
+                    color: "#000",
+                    tableLayout: "fixed",
+                    width: "100%",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+                  }}
                 >
-                  <thead className="bg-[#019b98]/10">
+                  <colgroup>
+                    {[
+                      <col key="drag-col" style={{ width: "40px" }} />,
+                      ...columns.map((col) => (
+                        <col
+                          key={col.key}
+                          style={{ width: isLongTextColumn(col) ? "14%" : "auto" }}
+                        />
+                      )),
+                      <col key="action-col" style={{ width: "80px" }} />,
+                    ]}
+                  </colgroup>
+
+                  <thead className="bg-gradient-to-r from-[#019b98] to-[#0a7a78]">
                     <tr>
                       <th
-                        className="px-3 py-3 text-left font-bold border-b-2 border-[#019b98]/40"
-                        style={{ color: "#019b98", width: 32 }}
+                        className="px-4 py-4 text-left font-bold border-b-2 border-white/20 text-white"
+                        style={{
+                          color: "#fff",
+                          width: 40,
+                          textTransform: "uppercase",
+                          fontSize: "12px",
+                          letterSpacing: "0.5px",
+                        }}
                       ></th>
                       {columns.map((col, idx) => (
                         <SortableColumn key={col.key} col={col} idx={idx}>
@@ -1540,7 +1842,7 @@ export default function ItemsTable({
                                 columns: newCols,
                               }));
                             }}
-                            className="font-bold text-xs border-none bg-transparent w-24 px-1 py-0.5 rounded focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
+                            className="font-bold text-xs border-none bg-transparent flex-1 min-w-[80px] px-1 py-0.5 rounded focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
                             placeholder="Column Title"
                             style={{ color: "#000" }}
                           />
@@ -1551,7 +1853,7 @@ export default function ItemsTable({
                                 setBillData((prev) => ({
                                   ...prev,
                                   columns: columns.filter(
-                                    (_, cidx) => cidx !== idx
+                                    (_, cidx) => cidx !== idx,
                                   ),
                                   items: items.map((row) => {
                                     const newRow = { ...row };
@@ -1577,130 +1879,79 @@ export default function ItemsTable({
                         </SortableColumn>
                       ))}
                       <th
-                        className="px-3 py-3 text-left font-bold border-b-2 border-[#019b98]/40"
-                        style={{ color: "#019b98" }}
+                        className="px-4 py-4 text-center font-bold border-b-2 border-white/20 text-white"
+                        style={{
+                          color: "#fff",
+                          textTransform: "uppercase",
+                          fontSize: "12px",
+                          letterSpacing: "0.5px",
+                        }}
                       >
                         Action
                       </th>
                     </tr>
                   </thead>
-                  <tbody>
-                    {items.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={columns.length + 2}
-                          className="text-center py-4 text-[#019b98]/60"
-                        >
-                          <svg
-                            width="32"
-                            height="32"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="#019b98"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="inline-block mr-2 icon-svg"
+                  <tbody className="divide-y divide-gray-200">
+                    {items.length === 0
+                      ? <tr>
+                          <td
+                            colSpan={columns.length + 2}
+                            className="text-center py-4 text-[#019b98]/60"
                           >
-                            <rect x="3" y="3" width="18" height="18" rx="4" />
-                            <path d="M7 7h10M7 12h7M7 17h5" />
-                          </svg>
-                          No items
-                        </td>
-                      </tr>
-                    ) : (
-                      <>
-                        {currentPage > 1 && (
-                          <tr>
-                            <td
-                              colSpan={columns.length + 2}
-                              className="px-3 py-2 bg-slate-50 font-semibold text-sm"
+                            <svg
+                              width="32"
+                              height="32"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#019b98"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="inline-block mr-2 icon-svg"
                             >
-                              <div className="print-page-label">
-                                {tableTitle} — Page {currentPage} of{" "}
-                                {totalPages}
-                              </div>
-                              {tableTitle}
-                            </td>
-                          </tr>
-                        )}
-                        {(() => {
-                          const start = (currentPage - 1) * rowsPerPage;
-                          const pageRows = items.slice(
-                            start,
-                            start + rowsPerPage
-                          );
-                          return pageRows.map((row, relIdx) => {
-                            const rowIdx = start + relIdx;
-                            return (
-                              <SortableRow
-                                key={row.id || rowIdx}
-                                row={row}
-                                rowIdx={rowIdx}
+                              <rect x="3" y="3" width="18" height="18" rx="4" />
+                              <path d="M7 7h10M7 12h7M7 17h5" />
+                            </svg>
+                            No items
+                          </td>
+                        </tr>
+                      : <>
+                          {currentPage > 1 && (
+                            <tr>
+                              <td
+                                colSpan={columns.length + 2}
+                                className="px-3 py-2 bg-slate-50 font-semibold text-sm"
                               >
-                                <td
-                                  style={{
-                                    cursor: "grab",
-                                    color: "#019b98",
-                                    textAlign: "center",
-                                    width: 32,
-                                  }}
-                                  title="Drag to reorder"
+                                <div className="print-page-label">
+                                  {tableTitle} — Page {currentPage} of{" "}
+                                  {totalPages}
+                                </div>
+                                {tableTitle}
+                              </td>
+                            </tr>
+                          )}
+                          {(() => {
+                            const start = (currentPage - 1) * rowsPerPage;
+                            const pageRows = items.slice(
+                              start,
+                              start + rowsPerPage,
+                            );
+                            return pageRows.map((row, relIdx) => {
+                              const rowIdx = start + relIdx;
+                              return (
+                                <SortableRow
+                                  key={row.id || rowIdx}
+                                  row={row}
+                                  rowIdx={rowIdx}
                                 >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                  >
-                                    <path d="M3 7h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                                  </svg>
-                                </td>
-                                {columns.map((col) => {
-                                  const inputType = col.type || "text";
-                                  let readOnly = false;
-                                  let displayValue = row[col.key];
-                                  // For formula columns, calculateRowFormulas may have stored array results
-                                  if (col.type === "formula" && col.formula) {
-                                    readOnly = true;
-                                  }
-                                  return (
-                                    <td
-                                      key={col.key}
-                                      className="px-3 py-2"
-                                      style={{ color: "#000" }}
-                                    >
-                                      <EditableCell
-                                        row={row}
-                                        rowIdx={rowIdx}
-                                        col={col}
-                                        inputType={inputType}
-                                        readOnly={readOnly}
-                                        displayValue={displayValue}
-                                      />
-                                    </td>
-                                  );
-                                })}
-                                <td
-                                  className="px-3 py-2 text-center"
-                                  style={{ color: "#000" }}
-                                >
-                                  <button
-                                    onClick={() =>
-                                      setBillData((prev) => ({
-                                        ...prev,
-                                        items: items.filter(
-                                          (_, idx) => idx !== rowIdx
-                                        ),
-                                      }))
-                                    }
-                                    className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md border-2 border-red-500 bg-red-50 text-red-500 font-semibold shadow-sm hover:bg-red-500 hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-sm"
-                                    title="Remove item"
-                                    aria-label="Remove item"
+                                  <td
+                                    className="px-4 py-3 text-center border-r border-gray-200 transition-colors"
+                                    style={{
+                                      cursor: "grab",
+                                      color: "#019b98",
+                                      width: 40,
+                                    }}
+                                    title="Drag to reorder rows"
                                   >
                                     <svg
                                       width="16"
@@ -1713,243 +1964,311 @@ export default function ItemsTable({
                                       strokeLinejoin="round"
                                       className="icon-svg"
                                     >
-                                      <polyline points="3,6 5,6 21,6" />
-                                      <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
-                                      <line x1="10" y1="11" x2="10" y2="17" />
-                                      <line x1="14" y1="11" x2="14" y2="17" />
+                                      <path d="M3 7h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
                                     </svg>
-                                    <span className="sr-only">Remove</span>
-                                  </button>
-                                </td>
-                              </SortableRow>
-                            );
-                          });
-                        })()}
+                                  </td>
+                                  {columns.map((col) => {
+                                    const inputType = col.type || "text";
+                                    let readOnly = false;
+                                    let displayValue = row[col.key];
+                                    // For formula columns, calculateRowFormulas may have stored array results
+                                    if (col.type === "formula" && col.formula) {
+                                      readOnly = true;
+                                    }
+                                    const isLongText = isLongTextColumn(col);
+                                    return (
+                                      <td
+                                        key={col.key}
+                                        className="px-4 py-3 align-top border-r border-gray-200 last:border-r-0 transition-colors"
+                                        style={{
+                                          color: "#1f2937",
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                          overflowWrap: "anywhere",
+                                          minWidth: isLongText ? 200 : 120,
+                                          width: isLongText
+                                            ? "auto"
+                                            : undefined,
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        <EditableCell
+                                          row={row}
+                                          rowIdx={rowIdx}
+                                          col={col}
+                                          inputType={inputType}
+                                          readOnly={readOnly}
+                                          displayValue={displayValue}
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                  <td
+                                    className="px-3 py-2 text-center"
+                                    style={{ color: "#000" }}
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        setBillData((prev) => ({
+                                          ...prev,
+                                          items: items.filter(
+                                            (_, idx) => idx !== rowIdx,
+                                          ),
+                                        }))
+                                      }
+                                      className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md border-2 border-red-500 bg-red-50 text-red-500 font-semibold shadow-sm hover:bg-red-500 hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-sm"
+                                      title="Remove item"
+                                      aria-label="Remove item"
+                                    >
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="icon-svg"
+                                      >
+                                        <polyline points="3,6 5,6 21,6" />
+                                        <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
+                                        <line x1="10" y1="11" x2="10" y2="17" />
+                                        <line x1="14" y1="11" x2="14" y2="17" />
+                                      </svg>
+                                      <span className="sr-only">Remove</span>
+                                    </button>
+                                  </td>
+                                </SortableRow>
+                              );
+                            });
+                          })()}
 
-                        {/* Totals Row */}
-                        {items.length > 0 && (
-                          <tr className="bg-gray-50 border-t-2 border-gray-300">
+                          {/* Totals Row */}
+                          {items.length > 0 && (
+                            <tr className="bg-gray-50 border-t-2 border-gray-300">
+                              <td
+                                className="px-3 py-2 font-bold text-gray-700"
+                                colSpan="2"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m0-7v7m0-7h10a2 2 0 0 1 2 2v3c0 1.1-.9 2-2 2H9m0-7V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                  </svg>
+                                  <span>TOTALS</span>
+                                </div>
+                              </td>
+                              {columns.map((col) => {
+                                const total = columnTotals[col.key];
+                                const isNumericColumn =
+                                  col.type === "number" ||
+                                  col.type === "formula";
+
+                                // Debug logging for each column (disabled)
+
+                                return (
+                                  <td
+                                    key={col.key}
+                                    className={`px-3 py-2 font-bold text-right ${
+                                      isNumericColumn
+                                        ? "text-green-700 bg-green-50"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    {isNumericColumn && total
+                                      ? col.key === "quantity"
+                                        ? <span className="flex items-center justify-end">
+                                            <span>{total}</span>
+                                          </span>
+                                        : <span className="flex items-center justify-end gap-1">
+                                            <span>₹</span>
+                                            <span>{total}</span>
+                                          </span>
+                                      : <span className="text-gray-400">
+                                          -
+                                        </span>}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-2"></td>
+                            </tr>
+                          )}
+
+                          <tr>
                             <td
-                              className="px-3 py-2 font-bold text-gray-700"
-                              colSpan="2"
+                              colSpan={columns.length + 2}
+                              className="text-center py-2"
                             >
-                              <div className="flex items-center gap-2">
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m0-7v7m0-7h10a2 2 0 0 1 2 2v3c0 1.1-.9 2-2 2H9m0-7V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-                                </svg>
-                                <span>TOTALS</span>
+                              <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-2">
+                                {/* Rows per page selector */}
+                                <div className="flex items-center gap-2 order-1 lg:order-1">
+                                  <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
+                                    Rows per page:
+                                  </label>
+                                  <select
+                                    value={rowsPerPage}
+                                    onChange={(e) => {
+                                      const newRowsPerPage = Number(
+                                        e.target.value,
+                                      );
+                                      setBillData((prev) => ({
+                                        ...prev,
+                                        rowsPerPage: newRowsPerPage,
+                                      }));
+                                      setCurrentPage(1); // Reset to first page
+                                    }}
+                                    className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent min-w-0"
+                                  >
+                                    <option value={1}>1</option>
+                                    <option value={5}>5</option>
+                                    <option value={8}>8</option>
+                                    <option value={10}>10</option>
+                                  </select>
+                                </div>
+
+                                {/* Pagination controls */}
+                                <div className="flex items-center gap-2 order-2 lg:order-2">
+                                  <button
+                                    onClick={() =>
+                                      setCurrentPage((p) => Math.max(1, p - 1))
+                                    }
+                                    disabled={currentPage <= 1}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                                      currentPage <= 1
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Previous page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <polyline points="15,18 9,12 15,6" />
+                                    </svg>
+                                    <span className="hidden sm:inline">
+                                      Prev
+                                    </span>
+                                  </button>
+                                  <div className="text-sm text-gray-600 px-1 sm:px-2 whitespace-nowrap">
+                                    Page {currentPage} / {totalPages}
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      setCurrentPage((p) =>
+                                        Math.min(totalPages, p + 1),
+                                      )
+                                    }
+                                    disabled={currentPage >= totalPages}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                                      currentPage >= totalPages
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Next page"
+                                  >
+                                    <span className="hidden sm:inline">
+                                      Next
+                                    </span>
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <polyline points="9,18 15,12 9,6" />
+                                    </svg>
+                                  </button>
+                                </div>
+
+                                {/* Page management buttons */}
+                                <div className="flex items-center gap-1 sm:gap-2 order-3 lg:order-3">
+                                  <button
+                                    onClick={() => changeManualExtraPages(1)}
+                                    className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ffd700] bg-[#fffbe6] text-[#bfa100] font-semibold shadow-sm hover:bg-[#ffd700] hover:text-[#311703] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ffd700] focus:ring-offset-2 text-sm"
+                                    aria-label="Add page"
+                                    title="Add empty page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14,2 14,8 20,8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                      <polyline points="10,9 9,9 8,9" />
+                                    </svg>
+                                    <span className="hidden md:inline">
+                                      Add Page
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => changeManualExtraPages(-1)}
+                                    disabled={manualExtraPages <= 0}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ff7f50] bg-[#fff0ea] text-[#ff7f50] font-semibold shadow-sm hover:bg-[#ff7f50] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ff7f50] focus:ring-offset-2 text-sm ${
+                                      manualExtraPages <= 0
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Remove page"
+                                    title="Remove last empty page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14,2 14,8 20,8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                      <polyline points="10,9 9,9 8,9" />
+                                      <line x1="8" y1="11" x2="16" y2="11" />
+                                    </svg>
+                                    <span className="hidden md:inline">
+                                      Remove Page
+                                    </span>
+                                  </button>
+                                </div>
                               </div>
                             </td>
-                            {columns.map((col) => {
-                              const total = columnTotals[col.key];
-                              const isNumericColumn =
-                                col.type === "number" || col.type === "formula";
-
-                              // Debug logging for each column
-                              // console.log(`Column ${col.key} (${col.label}): total=${total}, isNumeric=${isNumericColumn}`);
-
-                              return (
-                                <td
-                                  key={col.key}
-                                  className={`px-3 py-2 font-bold text-right ${
-                                    isNumericColumn
-                                      ? "text-green-700 bg-green-50"
-                                      : "text-gray-500"
-                                  }`}
-                                >
-                                  {isNumericColumn && total ? (
-                                    col.key === "quantity" ? (
-                                      <span className="flex items-center justify-end">
-                                        <span>{total}</span>
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center justify-end gap-1">
-                                        <span>₹</span>
-                                        <span>{total}</span>
-                                      </span>
-                                    )
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="px-3 py-2"></td>
                           </tr>
-                        )}
-
-                        <tr>
-                          <td
-                            colSpan={columns.length + 2}
-                            className="text-center py-2"
-                          >
-                            <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-2">
-                              {/* Rows per page selector */}
-                              <div className="flex items-center gap-2 order-1 lg:order-1">
-                                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
-                                  Rows per page:
-                                </label>
-                                <select
-                                  value={rowsPerPage}
-                                  onChange={(e) => {
-                                    const newRowsPerPage = Number(
-                                      e.target.value
-                                    );
-                                    setBillData((prev) => ({
-                                      ...prev,
-                                      rowsPerPage: newRowsPerPage,
-                                    }));
-                                    setCurrentPage(1); // Reset to first page
-                                  }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent min-w-0"
-                                >
-                                  <option value={1}>1</option>
-                                  <option value={5}>5</option>
-                                  <option value={8}>8</option>
-                                  <option value={10}>10</option>
-                                </select>
-                              </div>
-
-                              {/* Pagination controls */}
-                              <div className="flex items-center gap-2 order-2 lg:order-2">
-                                <button
-                                  onClick={() =>
-                                    setCurrentPage((p) => Math.max(1, p - 1))
-                                  }
-                                  disabled={currentPage <= 1}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
-                                    currentPage <= 1
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                  }`}
-                                  aria-label="Previous page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <polyline points="15,18 9,12 15,6" />
-                                  </svg>
-                                  <span className="hidden sm:inline">Prev</span>
-                                </button>
-                                <div className="text-sm text-gray-600 px-1 sm:px-2 whitespace-nowrap">
-                                  Page {currentPage} / {totalPages}
-                                </div>
-                                <button
-                                  onClick={() =>
-                                    setCurrentPage((p) =>
-                                      Math.min(totalPages, p + 1)
-                                    )
-                                  }
-                                  disabled={currentPage >= totalPages}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
-                                    currentPage >= totalPages
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                  }`}
-                                  aria-label="Next page"
-                                >
-                                  <span className="hidden sm:inline">Next</span>
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <polyline points="9,18 15,12 9,6" />
-                                  </svg>
-                                </button>
-                              </div>
-
-                              {/* Page management buttons */}
-                              <div className="flex items-center gap-1 sm:gap-2 order-3 lg:order-3">
-                                <button
-                                  onClick={() => changeManualExtraPages(1)}
-                                  className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ffd700] bg-[#fffbe6] text-[#bfa100] font-semibold shadow-sm hover:bg-[#ffd700] hover:text-[#311703] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ffd700] focus:ring-offset-2 text-sm"
-                                  aria-label="Add page"
-                                  title="Add empty page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                    <polyline points="14,2 14,8 20,8" />
-                                    <line x1="16" y1="13" x2="8" y2="13" />
-                                    <line x1="16" y1="17" x2="8" y2="17" />
-                                    <polyline points="10,9 9,9 8,9" />
-                                  </svg>
-                                  <span className="hidden md:inline">
-                                    Add Page
-                                  </span>
-                                </button>
-                                <button
-                                  onClick={() => changeManualExtraPages(-1)}
-                                  disabled={manualExtraPages <= 0}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ff7f50] bg-[#fff0ea] text-[#ff7f50] font-semibold shadow-sm hover:bg-[#ff7f50] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ff7f50] focus:ring-offset-2 text-sm ${
-                                    manualExtraPages <= 0
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                  }`}
-                                  aria-label="Remove page"
-                                  title="Remove last empty page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                    <polyline points="14,2 14,8 20,8" />
-                                    <line x1="16" y1="13" x2="8" y2="13" />
-                                    <line x1="16" y1="17" x2="8" y2="17" />
-                                    <polyline points="10,9 9,9 8,9" />
-                                    <line x1="8" y1="11" x2="16" y2="11" />
-                                  </svg>
-                                  <span className="hidden md:inline">
-                                    Remove Page
-                                  </span>
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </>
-                    )}
+                        </>}
                   </tbody>
                 </table>
               </SortableContext>
@@ -2076,64 +2395,64 @@ export default function ItemsTable({
                 </button>
               </div>
               <div className="max-h-56 overflow-auto border-t border-gray-100 pt-2">
-                {(presets || []).length === 0 ? (
-                  <div className="text-sm text-gray-500">No presets saved</div>
-                ) : (
-                  (presets || []).map((p) => (
-                    <div
-                      key={p.id}
-                      className="flex items-center justify-between py-2 border-b border-gray-50"
-                    >
-                      <div>
-                        <div className="font-medium text-sm">{p.name}</div>
-                        <div className="text-xs text-gray-500">
-                          {(p.columns || []).map((c) => c.label).join(", ")}
+                {(presets || []).length === 0
+                  ? <div className="text-sm text-gray-500">
+                      No presets saved
+                    </div>
+                  : (presets || []).map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between py-2 border-b border-gray-50"
+                      >
+                        <div>
+                          <div className="font-medium text-sm">{p.name}</div>
+                          <div className="text-xs text-gray-500">
+                            {(p.columns || []).map((c) => c.label).join(", ")}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => loadPreset(p)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-sm rounded hover:bg-slate-200 transition-colors"
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7,10 12,15 17,10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Load
+                          </button>
+                          <button
+                            onClick={() => deletePreset(p.id)}
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 text-sm rounded hover:bg-red-100 transition-colors"
+                          >
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3,6 5,6 21,6" />
+                              <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
+                            </svg>
+                            Delete
+                          </button>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => loadPreset(p)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-slate-100 text-slate-700 text-sm rounded hover:bg-slate-200 transition-colors"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7,10 12,15 17,10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                          </svg>
-                          Load
-                        </button>
-                        <button
-                          onClick={() => deletePreset(p.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 text-red-600 text-sm rounded hover:bg-red-100 transition-colors"
-                        >
-                          <svg
-                            width="12"
-                            height="12"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3,6 5,6 21,6" />
-                            <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                    ))}
               </div>
               <div className="flex justify-end mt-3">
                 <button
@@ -2303,10 +2622,10 @@ export default function ItemsTable({
                       {t.value === "formula"
                         ? "(Calculated)"
                         : t.value === "number"
-                        ? "(Numeric)"
-                        : t.value === "date"
-                        ? "(Date Picker)"
-                        : "(Text Input)"}
+                          ? "(Numeric)"
+                          : t.value === "date"
+                            ? "(Date Picker)"
+                            : "(Text Input)"}
                     </option>
                   ))}
                 </select>
@@ -2511,89 +2830,90 @@ export default function ItemsTable({
 
               {/* List existing presets */}
               <div className="max-h-80 overflow-auto border border-gray-200 rounded-lg">
-                {(billFormatPresets || []).length === 0 ? (
-                  <div className="p-8 text-center text-gray-500">
-                    <svg
-                      width="48"
-                      height="48"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="mx-auto mb-3 text-gray-400"
-                    >
-                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                      <polyline points="17,21 17,13 7,13 7,21" />
-                      <polyline points="7,3 7,8 15,8" />
-                    </svg>
-                    <p className="text-sm">No bill format presets saved yet</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Create your first preset above
-                    </p>
-                  </div>
-                ) : (
-                  (billFormatPresets || []).map((preset) => (
-                    <div
-                      key={preset.id}
-                      className="flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="font-medium text-sm text-gray-900">
-                          {preset.name}
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          {preset.description}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          Saved: {new Date(preset.savedAt).toLocaleDateString()}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => loadBillFormatPreset(preset)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded hover:bg-blue-100 transition-colors"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                            <polyline points="7,10 12,15 17,10" />
-                            <line x1="12" y1="15" x2="12" y2="3" />
-                          </svg>
-                          Load
-                        </button>
-                        <button
-                          onClick={() => deleteBillFormatPreset(preset.id)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 text-sm rounded hover:bg-red-100 transition-colors"
-                        >
-                          <svg
-                            width="14"
-                            height="14"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="3,6 5,6 21,6" />
-                            <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
+                {(billFormatPresets || []).length === 0
+                  ? <div className="p-8 text-center text-gray-500">
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="mx-auto mb-3 text-gray-400"
+                      >
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                        <polyline points="17,21 17,13 7,13 7,21" />
+                        <polyline points="7,3 7,8 15,8" />
+                      </svg>
+                      <p className="text-sm">
+                        No bill format presets saved yet
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Create your first preset above
+                      </p>
                     </div>
-                  ))
-                )}
+                  : (billFormatPresets || []).map((preset) => (
+                      <div
+                        key={preset.id}
+                        className="flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="font-medium text-sm text-gray-900">
+                            {preset.name}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {preset.description}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Saved:{" "}
+                            {new Date(preset.savedAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => loadBillFormatPreset(preset)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-50 text-blue-600 text-sm rounded hover:bg-blue-100 transition-colors"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="7,10 12,15 17,10" />
+                              <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
+                            Load
+                          </button>
+                          <button
+                            onClick={() => deleteBillFormatPreset(preset.id)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-red-50 text-red-600 text-sm rounded hover:bg-red-100 transition-colors"
+                          >
+                            <svg
+                              width="14"
+                              height="14"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <polyline points="3,6 5,6 21,6" />
+                              <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
               </div>
 
               <div className="flex justify-end">
@@ -2646,6 +2966,44 @@ export default function ItemsTable({
                 Print Preview
               </h3>
               <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 mr-4">
+                  <div className="text-xs text-gray-600 mr-2">Width:</div>
+                  <div className="inline-flex rounded-md bg-gray-50 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setPrintWidthPreset("narrow")}
+                      className={`px-2 py-1 text-xs rounded ${
+                        printWidthPreset === "narrow"
+                          ? "bg-white shadow-sm font-semibold"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      Narrow
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrintWidthPreset("default")}
+                      className={`px-2 py-1 text-xs rounded ${
+                        printWidthPreset === "default"
+                          ? "bg-white shadow-sm font-semibold"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      Default
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrintWidthPreset("wide")}
+                      className={`px-2 py-1 text-xs rounded ${
+                        printWidthPreset === "wide"
+                          ? "bg-white shadow-sm font-semibold"
+                          : "hover:bg-gray-100"
+                      }`}
+                    >
+                      Wide
+                    </button>
+                  </div>
+                </div>
                 <button
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
@@ -2689,7 +3047,11 @@ export default function ItemsTable({
             </div>
 
             <div className="flex-1 overflow-auto border border-gray-200 rounded-lg bg-white">
-              <div className="p-6 print:p-4" id="print-content">
+              <div
+                className="p-6 print:p-4"
+                id="print-content"
+                style={{ "--peipl-print-width": computedPrintWidth }}
+              >
                 {/* Print Header */}
                 <div className="text-center mb-6 print:mb-4">
                   <h1 className="text-2xl font-bold text-gray-900 mb-2 print:text-xl">
@@ -2915,7 +3277,7 @@ export default function ItemsTable({
                   value={bulkAddCount}
                   onChange={(e) =>
                     setBulkAddCount(
-                      Math.max(1, Math.min(50, parseInt(e.target.value) || 1))
+                      Math.max(1, Math.min(50, parseInt(e.target.value) || 1)),
                     )
                   }
                   className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"

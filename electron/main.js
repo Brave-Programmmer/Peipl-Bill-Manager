@@ -4,22 +4,66 @@ const fs = require("fs");
 const url = require("url");
 let mainWindow;
 
+const BILL_FILE_EXTENSIONS = [".json", ".peiplbill"];
+const isBillFilePath = (filePath = "") => {
+  if (!filePath) return false;
+  const lower = filePath.toLowerCase();
+  return BILL_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+};
+
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 }
+
 // Helper: Read JSON file and send to renderer as string
 function sendJsonToRenderer(filePath) {
   if (!filePath) return;
-  fs.readFile(filePath, 'utf8', (err, data) => {
+
+  // Allow any bill JSON/PEIPL files regardless of naming convention
+  if (!isBillFilePath(filePath)) {
+    const fileName = path.basename(filePath);
+    mainWindow?.webContents.send("open-file-error", {
+      error:
+        "Unsupported file type. Please select a .json or .peiplbill bill file.",
+      filePath,
+    });
+    return;
+  }
+
+  fs.readFile(filePath, "utf8", (err, data) => {
     if (err) {
-      mainWindow?.webContents.send('open-file-error', { error: err.message, filePath });
+      mainWindow?.webContents.send("open-file-error", {
+        error: err.message,
+        filePath,
+      });
     } else {
-      mainWindow?.webContents.send('open-file', { data, filePath });
+      try {
+        // Validate JSON
+        const billData = JSON.parse(data);
+
+        // Validate it's a bill file with required fields
+        if (!billData.billNumber || !billData.items) {
+          mainWindow?.webContents.send("open-file-error", {
+            error:
+              "Invalid bill file format. Missing required fields (billNumber or items).",
+            filePath,
+          });
+          return;
+        }
+
+        mainWindow?.webContents.send("open-file", { data, filePath });
+      } catch (parseError) {
+        mainWindow?.webContents.send("open-file-error", {
+          error: `Invalid JSON file: ${parseError.message}`,
+          filePath,
+        });
+      }
     }
   });
 }
+
 async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -43,28 +87,28 @@ async function createWindow() {
         pathname: path.join(__dirname, "out", "index.html"),
         protocol: "file:",
         slashes: true,
-      })
+      }),
     );
   } else {
     mainWindow.loadURL("http://localhost:3000");
   }
 
   // Listen for selection from launcher page
-  const { ipcMain } = require('electron');
-  ipcMain.on('launch-app-section', (event, section) => {
-    if (section === 'billing') {
+  const { ipcMain } = require("electron");
+  ipcMain.on("launch-app-section", (event, section) => {
+    if (section === "billing") {
       if (app.isPackaged) {
         mainWindow.loadURL(
           url.format({
             pathname: path.join(__dirname, "out", "index.html"),
             protocol: "file:",
             slashes: true,
-          })
+          }),
         );
       } else {
         mainWindow.loadURL("http://localhost:3000");
       }
-    } else if (section === 'hrdoc') {
+    } else if (section === "hrdoc") {
       // Example: open a placeholder HR Doc Settings page
       mainWindow.loadFile(path.join(__dirname, "hrdoc.html"));
     }
@@ -171,6 +215,7 @@ ipcMain.handle("open-file-dialog", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
     filters: [
+      { name: "PEIPL Bill Files", extensions: ["peiplbill", "json"] },
       { name: "JSON Files", extensions: ["json"] },
       { name: "All Files", extensions: ["*"] },
     ],
@@ -190,12 +235,17 @@ ipcMain.handle("open-file-dialog", async () => {
 });
 
 ipcMain.handle("save-file-dialog", async (event, billData) => {
+  const sanitizedBillNumber = (billData.billNumber || "invoice")
+    .replace(/[^a-z0-9]/gi, "_")
+    .toLowerCase();
+
   const result = await dialog.showSaveDialog(mainWindow, {
     filters: [
+      { name: "PEIPL Bill Files", extensions: ["peiplbill"] },
       { name: "JSON Files", extensions: ["json"] },
       { name: "All Files", extensions: ["*"] },
     ],
-    defaultPath: `bill_${billData.billNumber || "invoice"}_${
+    defaultPath: `bill_${sanitizedBillNumber}_${
       new Date().toISOString().split("T")[0]
     }.json`,
   });
@@ -226,34 +276,44 @@ ipcMain.handle("setup-file-associations", async () => {
   try {
     const { exec } = require("child_process");
     const path = require("path");
-    
+
     return new Promise((resolve) => {
       // Get the current executable path
       const exePath = process.execPath;
-      
-      // Use Windows commands to set up file associations
+
+      // Use Windows commands to set up file associations for bill_*.json files only
+      // Note: Windows doesn't support pattern-based associations directly,
+      // so we create a custom file type for .peiplbill extension
       const commands = [
         `ftype PEIPLBillMaker="${exePath}" "%1"`,
-        `assoc .json=PEIPLBillMaker`
+        `assoc .peiplbill=PEIPLBillMaker`,
+        `assoc .json=PEIPLBillMaker`,
       ];
-      
+
       let completed = 0;
       let hasError = false;
-      
+
       commands.forEach((command) => {
         exec(command, (error, stdout, stderr) => {
           completed++;
-          
+
           if (error) {
             console.error(`Command failed: ${command}`, error);
             hasError = true;
           }
-          
+
           if (completed === commands.length) {
             if (hasError) {
-              resolve({ success: false, error: "Failed to set up file associations. Please try manual setup." });
+              resolve({
+                success: false,
+                error:
+                  "Failed to set up file associations. Please try manual setup.",
+              });
             } else {
-              resolve({ success: true, message: "File associations set up successfully!" });
+              resolve({
+                success: true,
+                message: "File associations set up successfully!",
+              });
             }
           }
         });
@@ -269,14 +329,14 @@ ipcMain.handle("setup-file-associations", async () => {
 ipcMain.handle("open-file-association-settings", async () => {
   try {
     const { exec } = require("child_process");
-    
+
     // Open Windows file association settings
     exec("rundll32.exe shell32.dll,OpenAs_RunDLL .json", (error) => {
       if (error) {
         console.error("Error opening file association settings:", error);
       }
     });
-    
+
     return { success: true };
   } catch (error) {
     console.error("Error opening file association settings:", error);
@@ -286,7 +346,7 @@ ipcMain.handle("open-file-association-settings", async () => {
 
 // macOS: open-file event
 let pendingFilePath = null;
-app.on('open-file', (event, filePath) => {
+app.on("open-file", (event, filePath) => {
   event.preventDefault();
   pendingFilePath = filePath;
   if (mainWindow) {
@@ -295,13 +355,13 @@ app.on('open-file', (event, filePath) => {
 });
 
 // Handle second instance (Windows/Linux)
-app.on('second-instance', (event, argv, workingDirectory) => {
+app.on("second-instance", (event, argv, workingDirectory) => {
   // Someone tried to run a second instance, focus our window instead
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
-    // Check if there's a file to open
-    const fileArg = argv.find(arg => arg.endsWith('.json'));
+    // Check if there's a file to open (bill_*.json or .peiplbill)
+    const fileArg = argv.find((arg) => isBillFilePath(arg));
     if (fileArg) {
       sendJsonToRenderer(fileArg);
     }
@@ -314,10 +374,13 @@ app.whenReady().then(() => {
   createWindow();
   createMenu();
 
-  // Windows/Linux: check argv for file path
-  const fileArg = process.argv.find(arg => arg.endsWith('.json'));
+  // Windows/Linux: check argv for file path (bill_*.json or .peiplbill)
+  const fileArg = process.argv.find((arg) => isBillFilePath(arg));
   if (fileArg) {
-    sendJsonToRenderer(fileArg);
+    // Wait a bit for the window to be ready
+    setTimeout(() => {
+      sendJsonToRenderer(fileArg);
+    }, 1000);
   }
 
   // macOS: handle pending file after window ready
