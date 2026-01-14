@@ -14,73 +14,109 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
     setIsSettingUp(true);
     setSetupStatus("idle");
     try {
-      if (
-        isElectron &&
-        typeof window.electronAPI.setupFileAssociations === "function"
-      ) {
-        const result = await window.electronAPI.setupFileAssociations();
-        if (result && result.success) {
-          setSetupStatus("success");
-          toast.success(
-            "✅ File associations set up successfully! You can now open JSON bill files directly.",
-            {
-              duration: 5000,
-              icon: "📄",
-            },
-          );
-          // Auto-close after success
-          setTimeout(() => {
-            onClose();
-          }, 2000);
-        } else {
-          setSetupStatus("error");
-          toast.error(
-            `Failed to set up file associations: ${result?.error || "Unknown error"}`,
-            {
-              duration: 5000,
-            },
-          );
-        }
-      } else if (isElectron) {
+      if (!isElectron) {
+        setSetupStatus("error");
+        toast("File association setup is only available in the desktop app.", {
+          icon: "ℹ️",
+          duration: 5000,
+        });
+        setIsSettingUp(false);
+        return;
+      }
+
+      if (typeof window.electronAPI?.setupFileAssociations !== "function") {
         setSetupStatus("error");
         toast.error(
-          "Electron API is missing setupFileAssociations method. Please try manual setup.",
+          "File association feature is not available. Please update the app.",
+          { duration: 5000 }
         );
+        setIsSettingUp(false);
+        return;
+      }
+
+      // Show loading toast
+      const loadingToast = toast.loading("Setting up file associations...");
+
+      const result = await window.electronAPI.setupFileAssociations();
+
+      toast.dismiss(loadingToast);
+
+      if (result?.success) {
+        setSetupStatus("success");
+        toast.success(
+          "✅ File associations configured! You can now open .json and .peiplbill files directly with this app.",
+          {
+            duration: 5000,
+            icon: "📄",
+          }
+        );
+        // Auto-close after success
+        setTimeout(() => {
+          onClose();
+        }, 2500);
       } else {
         setSetupStatus("error");
-        toast(
-          "Manual setup required. This feature is only available in the desktop app.",
-          { icon: "ℹ️" },
+        const errorMsg = result?.error || "Unknown error occurred";
+        toast.error(
+          `Failed to set up file associations:\n${errorMsg}\n\nNote: You may need to run as Administrator.`,
+          {
+            duration: 6000,
+            style: {
+              maxWidth: "500px",
+              whiteSpace: "pre-wrap",
+            },
+          }
         );
       }
     } catch (error) {
       console.error("Error setting up file associations:", error);
       setSetupStatus("error");
       toast.error(
-        "Error setting up file associations. Please try manual setup.",
+        `Unexpected error: ${error.message || "Please try again later"}`,
         {
           duration: 5000,
-        },
+        }
       );
     } finally {
       setIsSettingUp(false);
     }
   };
 
-  const openFileAssociationSettings = () => {
-    if (
-      isElectron &&
-      typeof window.electronAPI.openFileAssociationSettings === "function"
-    ) {
-      window.electronAPI.openFileAssociationSettings();
-    } else if (isElectron) {
-      toast.error(
-        "Electron API is missing openFileAssociationSettings method.",
-      );
-    } else {
+  const openFileAssociationSettings = async () => {
+    if (!isElectron) {
       toast(
-        "Right-click a JSON file, choose 'Open with', then select PEIPL Bill Maker and set as default.",
-        { icon: "📝" },
+        "This feature is only available in the desktop app.",
+        { icon: "ℹ️" }
+      );
+      return;
+    }
+
+    if (typeof window.electronAPI?.openFileAssociationSettings !== "function") {
+      toast.error(
+        "File association settings feature is not available.",
+        { duration: 5000 }
+      );
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.openFileAssociationSettings();
+      if (result?.success) {
+        toast.success("Opening file association settings...", {
+          icon: "⚙️",
+          duration: 3000,
+        });
+      } else {
+        toast(
+          "Right-click a .json file and select 'Open with' to manually set this app as the default.",
+          { icon: "📝", duration: 5000 }
+        );
+      }
+    } catch (error) {
+      console.error("Error opening file association settings:", error);
+      toast(
+        "Please manually right-click a JSON file and select 'Open with' to set this app as default.",
+        { icon: "📝", duration: 5000 }
       );
     }
   };
@@ -169,7 +205,7 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                       <p className="text-sm text-green-800 m-0 flex items-center gap-2">
                         <span className="text-lg">✓</span>
                         You can now double-click JSON bill files to open them
-                        directly in PEIPL Bill Maker!
+                        directly in PEIPL Bill Assistant!
                       </p>
                     </div>
                   )}
@@ -207,7 +243,7 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                         3
                       </span>
                       <span>
-                        Find and click <strong>PEIPL Bill Maker</strong>
+                        Find and click <strong>PEIPL Bill Assistant</strong>
                       </span>
                     </li>
                     <li className="flex gap-3 items-start">

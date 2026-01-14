@@ -16,7 +16,7 @@ export default function WelcomeGuide() {
 
   const steps = [
     {
-      title: "👋 Welcome to PEIPL Bill Maker!",
+      title: "👋 Welcome to PEIPL Bill Assistant!",
       description:
         "Let's take a quick tour to get you started. This will only take 30 seconds!",
       icon: "🎉",

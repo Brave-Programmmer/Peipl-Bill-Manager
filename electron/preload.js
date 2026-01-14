@@ -32,4 +32,49 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setupFileAssociations: () => ipcRenderer.invoke("setup-file-associations"),
   openFileAssociationSettings: () =>
     ipcRenderer.invoke("open-file-association-settings"),
+
+  // Debug - check if methods exist
+  checkAPI: () => ({
+    setupFileAssociations: typeof ipcRenderer.invoke === "function",
+    openFileAssociationSettings: typeof ipcRenderer.invoke === "function",
+  }),
+
+  // Window controls for custom titlebar
+  minimize: () => ipcRenderer.invoke("window-minimize"),
+  maximize: () => ipcRenderer.invoke("window-maximize"),
+  close: () => ipcRenderer.invoke("window-close"),
+  isMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  onMaximize: (callback) => {
+    ipcRenderer.on("window-maximized", callback);
+  },
+  onUnmaximize: (callback) => {
+    ipcRenderer.on("window-unmaximized", callback);
+  },
+
+  // Gem upload automation
+  uploadToGem: (meta) => ipcRenderer.invoke("gem-upload", meta),
+  getTempDir: () => ipcRenderer.invoke("get-temp-dir"),
+  savePDFFile: (dirPath, filename, base64Data) =>
+    ipcRenderer.invoke("save-pdf-file", dirPath, filename, base64Data),
+
+  // Bill folder tracking
+  selectBillFolder: () => ipcRenderer.invoke("select-bill-folder"),
+  scanFolderStructure: (folderPath) =>
+    ipcRenderer.invoke("scan-folder-structure", folderPath),
+  saveFolderConfig: (config) =>
+    ipcRenderer.invoke("save-folder-config", config),
+  loadFolderConfig: () => ipcRenderer.invoke("load-folder-config"),
+  saveBillTracking: (trackingData) =>
+    ipcRenderer.invoke("save-bill-tracking", trackingData),
+  loadBillTracking: () => ipcRenderer.invoke("load-bill-tracking"),
+  scanBillsInFolders: (subfolderPaths) =>
+    ipcRenderer.invoke("scan-bills-in-folders", subfolderPaths),
+  scanGstSubmittedFolder: (gstSubmittedFolderPath, billFilePaths) =>
+    ipcRenderer.invoke("scan-gst-submitted-folder", gstSubmittedFolderPath, billFilePaths),
+  copyBillToGstSubmitted: (sourceFilePath, gstSubmittedFolderPath, submissionMonth) =>
+    ipcRenderer.invoke("copy-bill-to-gst-submitted", sourceFilePath, gstSubmittedFolderPath, submissionMonth),
+
+  // Delete bill from GST submitted folder
+  deleteBillFromGstSubmitted: (filePath) =>
+    ipcRenderer.invoke("delete-bill-from-gst-submitted", filePath),
 });

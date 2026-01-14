@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 /**
- * File Association Installer for PEIPL Bill Maker
+ * File Association Installer for PEIPL Bill Assistant
  * This script sets up file associations during installation
  */
 
 const { exec } = require("child_process");
 const fs = require("fs");
 
-console.log("🔧 Setting up file associations for PEIPL Bill Maker...");
+console.log("🔧 Setting up file associations for PEIPL Bill Assistant...");
 
 // Get the executable path
 const exePath = process.execPath;
@@ -59,7 +59,7 @@ commands.forEach(({ name, command }) => {
       } else {
         console.log("🎉 File associations set up successfully!");
         console.log(
-          "💡 You can now double-click JSON files to open them in PEIPL Bill Maker.",
+          "💡 You can now double-click JSON files to open them in PEIPL Bill Assistant.",
         );
         process.exit(0);
       }

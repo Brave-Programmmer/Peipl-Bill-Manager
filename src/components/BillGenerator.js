@@ -1,7 +1,8 @@
 import { create, all } from "mathjs";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { exportToPDF, printBill } from "../utils/pdfGenerator";
+import { uploadToGem } from "../utils/gemUpload";
 
 // --- Formula Calculation Logic ---
 // Math.js instance
@@ -67,6 +68,20 @@ const FormulaUtils = {
 };
 // --- End Formula Calculation Logic ---
 
+// Default columns with formulas - memoized to prevent recreation
+const DEFAULT_COLUMNS = [
+  { key: "srNoDate", label: "Sr. No. & Date" },
+  { key: "refNo", label: "Ref No." },
+  { key: "description", label: "Job Description" },
+  { key: "sacHsn", label: "SAC/HSN" },
+  { key: "quantity", label: "Qty" },
+  { key: "rate", label: "Rate (₹)" },
+  { key: "amount", label: "Taxable Value (₹)", type: "formula", formula: "quantity * rate" },
+  { key: "cgstAmount", label: "CGST (9%)", type: "formula", formula: "amount * 0.09" },
+  { key: "sgstAmount", label: "SGST (9%)", type: "formula", formula: "amount * 0.09" },
+  { key: "totalWithGST", label: "Total (₹)", type: "formula", formula: "amount + cgstAmount + sgstAmount" },
+];
+
 export default function BillGenerator({
   billData,
   companyInfo,
@@ -76,6 +91,7 @@ export default function BillGenerator({
   onSaveBill,
 }) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isUploadingToGem, setIsUploadingToGem] = useState(false);
   const [orderNo, setOrderNo] = useState(billData.orderNo || "");
 
   // Keep local orderNo in sync when parent billData changes
@@ -83,32 +99,19 @@ export default function BillGenerator({
     setOrderNo(billData.orderNo || "");
   }, [billData.orderNo]);
 
-  // Dynamic table state
-  // Enforce default formulas for all bills if not present
-  let columns = billData.columns || [
-    { key: "srNoDate", label: "Sr. No. & Date" },
-    { key: "refNo", label: "Ref No." },
-    { key: "description", label: "Job Description" },
-    { key: "sacHsn", label: "SAC/HSN" },
-    { key: "quantity", label: "Qty" },
-    { key: "rate", label: "Rate (₹)" },
-    { key: "amount", label: "Taxable Value (₹)" },
-    { key: "cgstAmount", label: "CGST (9%)" },
-    { key: "sgstAmount", label: "SGST (9%)" },
-    { key: "totalWithGST", label: "Total (₹)" },
-  ];
-  // Add default formulas and types if missing
-  const ensureFormula = (key, formula) => {
-    const idx = columns.findIndex((c) => c.key === key);
-    if (idx >= 0) {
-      if (!columns[idx].formula) columns[idx].formula = formula;
-      columns[idx].type = "formula"; // Force type to formula for calculation columns
-    }
-  };
-  ensureFormula("amount", "quantity * rate");
-  ensureFormula("cgstAmount", "amount * 0.09");
-  ensureFormula("sgstAmount", "amount * 0.09");
-  ensureFormula("totalWithGST", "amount + cgstAmount + sgstAmount");
+  // Dynamic table state - use memoized columns with default formulas
+  const columns = useMemo(() => {
+    const baseCols = billData.columns || DEFAULT_COLUMNS;
+    // Ensure formulas are present and types are correct (only compute once)
+    return baseCols.map(col => {
+      const defaults = DEFAULT_COLUMNS.find(dc => dc.key === col.key);
+      if (defaults && defaults.type === "formula") {
+        return { ...col, type: "formula", formula: col.formula || defaults.formula };
+      }
+      return col;
+    });
+  }, [billData.columns]);
+
   const tableTitle = billData.tableTitle || "Bill Items";
   // Memoize expensive calculations
   const compiledFormulas = useMemo(
@@ -294,6 +297,47 @@ export default function BillGenerator({
     }
   };
 
+  // Copy key bill credentials to clipboard for easy pasting into portals
+  const handleCopyCredentials = async () => {
+    try {
+      const invoiceNo = billData.billNumber || "";
+      const invoiceDate = formatDate(billData.date) || "N/A";
+      const subtotal = calculateSubtotal().toFixed(2);
+      const grandTotal = calculateTotal().toFixed(2);
+      const gstin = "27AAACR2831H1ZK";
+
+      // Try to extract SAC/HSN from first row that has it
+      let sacHsn = "";
+      if (Array.isArray(rows) && rows.length > 0) {
+        const firstWithSac = rows.find((r) => r.sacHsn);
+        sacHsn = firstWithSac?.sacHsn || "";
+      }
+
+      // Copy only the values (one per line) so they can be pasted individually
+      const values = [invoiceNo, invoiceDate, subtotal, grandTotal, sacHsn, gstin];
+      const text = values.join("\n");
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.top = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      toast.success("Bill values copied to clipboard");
+    } catch (error) {
+      console.error("Error copying credentials:", error);
+      toast.error("Failed to copy credentials");
+    }
+  };
+
   // Simple multi-page PDF export by slicing canvas vertically
   const handleExportToPDF = async () => {
     if (isExporting) return;
@@ -304,6 +348,41 @@ export default function BillGenerator({
   // Print the rendered bill canvas directly
   const handlePrintBill = () => {
     printBill("bill-content", billData.billNumber);
+  };
+
+  // Upload to Gem portal (no automatic file upload; only navigation + field autofill)
+  const handleUploadToGem = async () => {
+    if (isUploadingToGem) return;
+
+    setIsUploadingToGem(true);
+    const toastId = toast.loading("Opening Gem portal...");
+
+    try {
+      // Prepare bill metadata for Gem script
+      const invoiceNo = billData.billNumber || "";
+      const subtotal = Number(calculateSubtotal() || 0);
+      const grandTotal = Number(calculateTotal() || 0);
+      const gstin = "27AAACR2831H1ZK";
+
+      const meta = {
+        invoiceNo,
+        subtotal,
+        grandTotal,
+        gstin,
+      };
+
+      // Start the Gem automation script with metadata;
+      // user will still handle PDF upload manually in the browser.
+      await uploadToGem(meta);
+      toast.success("Gem portal automation started. Use the browser to upload your PDF.", {
+        id: toastId,
+      });
+    } catch (error) {
+      console.error("Error starting Gem automation:", error);
+      toast.error(`Failed to open Gem portal: ${error.message}`, { id: toastId });
+    } finally {
+      setIsUploadingToGem(false);
+    }
   };
 
   const handleSaveBill = () => {
@@ -1092,7 +1171,21 @@ export default function BillGenerator({
             >
               🖨️ Print
             </button>
-
+          <button
+            onClick={handleCopyCredentials}
+            className="bg-amber-600 text-white px-4 py-2 text-sm font-semibold"
+            title="Copy key bill details to clipboard"
+          >
+            📋 Copy Credentials
+          </button>
+            <button
+              onClick={handleUploadToGem}
+              disabled={isUploadingToGem}
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 text-sm font-semibold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
+              title="Upload PDF bill to Gem portal using automation"
+            >
+              {isUploadingToGem ? "⏳ Uploading..." : "🚀 Upload to Gem"}
+            </button>
             <button
               onClick={onEdit}
               className="bg-gray-600 text-white px-4 py-2 text-sm font-semibold"

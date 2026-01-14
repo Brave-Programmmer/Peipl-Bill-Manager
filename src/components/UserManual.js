@@ -16,13 +16,13 @@ export default function UserManual({ isVisible, onClose }) {
       content: (
         <div className="space-y-4">
           <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            Getting Started with PEIPL Bill Maker
+            Getting Started with PEIPL Bill Assistant
           </h2>
 
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
             <h3 className="font-bold text-blue-800 mb-2">Welcome! 👋</h3>
             <p className="text-blue-700">
-              PEIPL Bill Maker is a professional invoicing application designed
+              PEIPL Bill Assistant is a professional invoicing application designed
               for creating, managing, and printing bills with ease.
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function UserManual({ isVisible, onClose }) {
               Print System Overview
             </h3>
             <p className="text-green-700">
-              PEIPL Bill Maker uses a professional printing system that ensures
+              PEIPL Bill Assistant uses a professional printing system that ensures
               your bills print perfectly on A4 paper.
             </p>
           </div>
@@ -776,7 +776,7 @@ export default function UserManual({ isVisible, onClose }) {
             <div>
               <h1 className="text-3xl font-bold mb-2">📚 User Manual</h1>
               <p className="text-white/90">
-                Complete guide to using PEIPL Bill Maker
+                Complete guide to using PEIPL Bill Assistant
               </p>
             </div>
             <button

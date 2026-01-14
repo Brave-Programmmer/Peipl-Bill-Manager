@@ -14,6 +14,9 @@ export default function AIAssistant({
   onOpenBill,
   onGenerateBill,
   onShowUserManual,
+  billData,
+  companyInfo,
+  pdfPath,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -119,31 +122,97 @@ export default function AIAssistant({
     setIsTyping(true);
 
     try {
-      // Enhanced response with context awareness
-      setTimeout(
-        () => {
-          const response = generateSmartResponse(input, conversationContext);
+      // If the user asks about GEM upload or analysis, call server-side Phoenix analyze API
+      const lower = input.toLowerCase();
+      const triggerKeywords = ["gem", "gem upload", "analyze", "upload to gem"];
+      const shouldCallServer = triggerKeywords.some((k) => lower.includes(k));
+
+      if (shouldCallServer) {
+        try {
+          // If user requested an upload action, call server to start uploader
+          const uploadTriggers = ["upload to gem", "start gem upload", "upload invoice to gem", "upload to gem portal", "upload to gem portal"]; 
+          const wantsUpload = uploadTriggers.some((t) => lower.includes(t));
+
+          if (wantsUpload) {
+            // Build metadata from available bill state
+            const meta = {
+              invoiceNo: billData?.billNumber || "",
+              subtotal: typeof billData === "object" && billData.items ? billData.items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0) : undefined,
+              grandTotal: typeof billData === "object" ? (billData.total || undefined) : undefined,
+              gstin: companyInfo?.gst || billData?.customerGST || undefined,
+              pdfPath: pdfPath || undefined,
+            };
+
+            const resp = await fetch("/api/phoenix-analyze", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "upload", meta, options: { openInSystemBrowser: true } }),
+            });
+            const data = await resp.json();
+            if (data?.success) {
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: "✅ GEM upload automation started on this machine. Follow the browser prompts to complete the upload.", timestamp: new Date().toISOString() },
+              ]);
+            } else {
+              setMessages((prev) => [
+                ...prev,
+                { role: "assistant", content: `⚠️ Failed to start GEM upload: ${data?.error || 'Unknown error'}`, timestamp: new Date().toISOString() },
+              ]);
+            }
+            setIsTyping(false);
+            return;
+          }
+
+          // send metadata with analysis request too
+          const analyzeMeta = {
+            invoiceNo: billData?.billNumber || "",
+            subtotal: typeof billData === "object" && billData.items ? billData.items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0) : undefined,
+            grandTotal: typeof billData === "object" ? (billData.total || undefined) : undefined,
+            gstin: companyInfo?.gst || billData?.customerGST || undefined,
+            pdfPath: pdfPath || undefined,
+          };
+
+          const resp = await fetch("/api/phoenix-analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "analyze", meta: analyzeMeta, message: input }),
+          });
+          const data = await resp.json();
+          const responseText = data?.reply || data?.error || "No analysis available";
           setMessages((prev) => [
             ...prev,
-            {
-              role: "assistant",
-              content: response,
-              timestamp: new Date().toISOString(),
-              context: conversationContext.currentTopic,
-            },
+            { role: "assistant", content: responseText, timestamp: new Date().toISOString() },
           ]);
           setIsTyping(false);
-        },
-        800 + Math.random() * 400,
-      ); // Variable delay for realism
+          return;
+        } catch (err) {
+          console.error("Phoenix analyze API error:", err);
+          // fall through to local response
+        }
+      }
+
+      // Enhanced response with context awareness (local)
+      setTimeout(() => {
+        const response = generateSmartResponse(input, conversationContext);
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: response,
+            timestamp: new Date().toISOString(),
+            context: conversationContext.currentTopic,
+          },
+        ]);
+        setIsTyping(false);
+      }, 800 + Math.random() * 400);
     } catch (error) {
       console.error("Error getting AI response:", error);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content:
-            "🤔 I'm having trouble processing your request right now. Could you try asking again?",
+          content: "🤔 I'm having trouble processing your request right now. Could you try asking again?",
           timestamp: new Date().toISOString(),
           isError: true,
         },

@@ -35,7 +35,12 @@ const UserManual = dynamic(() => import("../components/UserManual"), {
 const WelcomeGuide = dynamic(() => import("../components/WelcomeGuide"), {
   ssr: false,
 });
+const BillFolderTracker = dynamic(
+  () => import("../components/BillFolderTracker"),
+  { ssr: false },
+);
 import toast from "react-hot-toast";
+import CustomTitleBar from "../components/CustomTitleBar";
 
 export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
@@ -47,8 +52,20 @@ export default function Home() {
   const [showFileAssociationSetup, setShowFileAssociationSetup] =
     useState(false);
   const [showUserManual, setShowUserManual] = useState(false);
+  const [showBillFolderTracker, setShowBillFolderTracker] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [showTooltips, setShowTooltips] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isElectron, setIsElectron] = useState(false);
+
+  // Check if running in Electron
+  useEffect(() => {
+    setIsElectron(typeof window !== "undefined" && !!window.electronAPI);
+  }, []);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((prev) => !prev);
+  }, []);
 
   // Check if user has seen tooltips before
   useEffect(() => {
@@ -122,14 +139,23 @@ export default function Home() {
   useEffect(() => {
     if (!showSplash && !initialized) {
       // Load saved bills from localStorage
-      const saved = JSON.parse(localStorage.getItem("savedBills") || "[]");
-      setSavedBills(saved);
+      try {
+        const saved = JSON.parse(localStorage.getItem("savedBills") || "[]");
+        setSavedBills(saved);
+      } catch (err) {
+        console.error("Failed to load saved bills:", err);
+        setSavedBills([]);
+      }
       // Load company info from localStorage
-      const savedCompanyInfo = JSON.parse(
-        localStorage.getItem("companyInfo") || "null",
-      );
-      if (savedCompanyInfo) {
-        setCompanyInfo(savedCompanyInfo);
+      try {
+        const savedCompanyInfo = JSON.parse(
+          localStorage.getItem("companyInfo") || "null",
+        );
+        if (savedCompanyInfo) {
+          setCompanyInfo(savedCompanyInfo);
+        }
+      } catch (err) {
+        console.error("Failed to load company info:", err);
       }
       // Set up event listener for credential manager
       const handleOpenCredentialManager = () => {
@@ -600,6 +626,13 @@ export default function Home() {
   }
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative">
+      {/* Custom Title Bar (Electron only) */}
+      {isElectron && (
+        <CustomTitleBar
+          onToggleSidebar={toggleSidebar}
+          sidebarOpen={sidebarOpen}
+        />
+      )}
       {/* Drag and Drop Overlay */}
       {isDragOver && (
         <div className="fixed inset-0 bg-blue-500/20 backdrop-blur-sm z-40 flex items-center justify-center animate-fade-in">
@@ -612,7 +645,10 @@ export default function Home() {
           </div>
         </div>
       )}
-      <Header />
+      <Header
+        onToggleSidebar={toggleSidebar}
+        sidebarOpen={sidebarOpen}
+      />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {isLoading
           ? <div className="flex items-center justify-center min-h-96">
@@ -630,6 +666,9 @@ export default function Home() {
                   setBillData={setBillData}
                   companyInfo={companyInfo}
                   setCompanyInfo={setCompanyInfo}
+                  sidebarOpen={sidebarOpen}
+                  onToggleSidebar={toggleSidebar}
+                  hideMenuButton={isElectron}
                 />
               </section>
               {/* Items Table Section */}
@@ -744,15 +783,26 @@ export default function Home() {
                     )}
                   </button>
                   {window.electronAPI && (
-                    <button
-                      onClick={() => setShowFileAssociationSetup(true)}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-6 hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group"
-                    >
-                      <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                        🔗
-                      </span>
-                      <span>Setup File Associations</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => setShowBillFolderTracker(true)}
+                        className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-8 py-6 hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group"
+                      >
+                        <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
+                          📁
+                        </span>
+                        <span>Bill Folder Tracker</span>
+                      </button>
+                      <button
+                        onClick={() => setShowFileAssociationSetup(true)}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-6 hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group"
+                      >
+                        <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
+                          🔗
+                        </span>
+                        <span>Setup File Associations</span>
+                      </button>
+                    </>
                   )}
                 </div>
               </section>
@@ -802,6 +852,15 @@ export default function Home() {
             onClose={() => setShowUserManual(false)}
           />
         </Suspense>
+        {/* Bill Folder Tracker Modal */}
+        <Suspense
+          fallback={<LoadingSpinner text="Loading Bill Folder Tracker..." />}
+        >
+          <BillFolderTracker
+            isVisible={showBillFolderTracker}
+            onClose={() => setShowBillFolderTracker(false)}
+          />
+        </Suspense>
         {/* Welcome Guide for First-Time Users */}
         <Suspense fallback={null}>
           <WelcomeGuide />
@@ -813,6 +872,9 @@ export default function Home() {
             onOpenBill={handleOpenBillFile}
             onGenerateBill={generateBill}
             onShowUserManual={() => setShowUserManual(true)}
+            billData={billData}
+            companyInfo={companyInfo}
+            pdfPath={billData?.pdfPath}
           />
         </Suspense>
       </main>

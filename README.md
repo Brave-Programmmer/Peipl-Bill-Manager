@@ -1,4 +1,4 @@
-# PEIPL Bill Maker
+# PEIPL Bill Assistant
 
 A professional bill generation application for Pujari Engineers India Pvt Ltd, available as both a web application and desktop application with advanced file management capabilities.
 
@@ -61,7 +61,7 @@ npx electron-builder
 3. **File Association**:
 
    - Double-click any JSON file to open it directly in the app
-   - Right-click JSON files → "Open with" → "PEIPL Bill Maker"
+   - Right-click JSON files → "Open with" → "PEIPL Bill Assistant"
 
 4. **Additional Features**:
    - Native file system integration

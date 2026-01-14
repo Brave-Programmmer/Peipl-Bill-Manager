@@ -52,9 +52,9 @@ export const exportToPDF = async (
     const windowWidthPx = mmToPx(widthMm) || 1200;
     const windowHeightPx = Math.max(1600, Math.round(windowWidthPx * 1.4));
 
-    // Render bill to canvas with improved quality
+    // Render bill to canvas with improved quality but reasonable size
     const canvas = await html2canvas(billElement, {
-      scale: 3, // Higher quality
+      scale: 2, // Lower scale for smaller file size while keeping decent quality
       useCORS: true,
       allowTaint: true,
       backgroundColor: "#ffffff",
@@ -76,8 +76,8 @@ export const exportToPDF = async (
     const pageWidthMM = 210;
     const pageHeightMM = 297;
 
-    // convert canvas to image data
-    const imgData = canvas.toDataURL("image/png");
+    // convert canvas to compressed JPEG image data for smaller PDFs
+    const imgData = canvas.toDataURL("image/jpeg", 0.8);
 
     // calculate image dimensions in mm, preserving aspect ratio
     const pxPerMm = canvas.width / pageWidthMM; // px per mm based on width fit
@@ -113,20 +113,76 @@ export const exportToPDF = async (
           canvas.width,
           sliceHeight,
         );
-        const sliceData = sliceCanvas.toDataURL("image/png");
+        const sliceData = sliceCanvas.toDataURL("image/jpeg", 0.8);
         const sliceHeightMM = sliceHeight / pxPerMm;
 
         if (yPos > 0) pdf.addPage();
-        pdf.addImage(sliceData, "PNG", 0, 0, pageWidthMM, sliceHeightMM);
+        pdf.addImage(sliceData, "JPEG", 0, 0, pageWidthMM, sliceHeightMM);
         yPos += sliceHeight;
+        // Cleanup canvas context to prevent memory leak
+        ctx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
       }
     }
 
-    const filename = `bill_${billNumber || "invoice"}_${new Date()
+    // Sanitize bill number for use in filenames (remove path‑breaking characters)
+    const rawBillNumber = billNumber || "invoice";
+    const safeBillNumber = String(rawBillNumber).replace(/[\\\/:*?"<>|]/g, "_");
+
+    const filename = `bill_${safeBillNumber}_${new Date()
       .toISOString()
       .slice(0, 10)}.pdf`;
+
+    // If savePath is provided, save to that location (for Gem upload)
+    if (
+      setIsExporting &&
+      typeof setIsExporting === "object" &&
+      setIsExporting.savePath
+    ) {
+      try {
+        const pdfBlob = pdf.output("blob");
+        const arrayBuffer = await pdfBlob.arrayBuffer();
+
+        // Convert ArrayBuffer to base64 for IPC transfer (chunked to avoid call stack issues)
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = "";
+        const chunkSize = 0x8000; // 32k
+        for (let i = 0; i < uint8Array.length; i += chunkSize) {
+          const chunk = uint8Array.subarray(i, i + chunkSize);
+          binary += String.fromCharCode.apply(null, chunk);
+        }
+        const base64 = btoa(binary);
+
+        // Use Electron IPC to save file
+        if (
+          typeof window !== "undefined" &&
+          window.electronAPI &&
+          window.electronAPI.savePDFFile
+        ) {
+          const fullPath = await window.electronAPI.savePDFFile(
+            setIsExporting.savePath,
+            filename,
+            base64,
+          );
+          toast.success("PDF saved for Gem upload", { id: toastId });
+          return fullPath;
+        } else {
+          // Fallback to download
+          pdf.save(filename);
+          toast.success("PDF generated", { id: toastId });
+          return null;
+        }
+      } catch (error) {
+        console.error("Error saving PDF:", error);
+        // Fallback to download
+        pdf.save(filename);
+        toast.success("PDF generated", { id: toastId });
+        return null;
+      }
+    }
+
     pdf.save(filename);
     toast.success("PDF generated", { id: toastId });
+    return null;
   } catch (error) {
     console.error("Error generating PDF:", error);
     toast.error(
@@ -134,7 +190,7 @@ export const exportToPDF = async (
       { id: toastId },
     );
   } finally {
-    if (setIsExporting) setIsExporting(false);
+    if (typeof setIsExporting === "function") setIsExporting(false);
     if (loadingDiv && loadingDiv.parentNode)
       loadingDiv.parentNode.removeChild(loadingDiv);
   }
@@ -229,6 +285,8 @@ export const printBill = async (billElementId, billNumber) => {
         if (yPos > 0) pdf.addPage();
         pdf.addImage(sliceData, "PNG", 0, 0, pageWidthMM, sliceHeightMM);
         yPos += sliceHeight;
+        // Cleanup canvas context to prevent memory leak
+        ctx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
       }
     }
 

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>PEIPL Bill Assistant</title>
+
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="
+        default-src 'self';
+        style-src 'self' 'unsafe-inline';
+        script-src 'self' 'unsafe-inline';
+      "
+    />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        width: 100vw;
+        height: 100vh;
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #111827;
+        -webkit-font-smoothing: antialiased;
+        -webkit-app-region: drag;
+      }
+
+      .container {
+        text-align: center;
+        user-select: none;
+      }
+
+      .logo {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto 12px;
+        border-radius: 999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: aliceblue;
+        color: #ffffff;
+        font-weight: 700;
+        font-size: 24px;
+      }
+
+      .title {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .subtitle {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 4px;
+      }
+
+      .version {
+        margin-top: 10px;
+        font-size: 11px;
+        color: #9ca3af;
+        -webkit-app-region: no-drag;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="logo"><img src="./out/logo.png" alt="PEIPL Logo" height="50px" width="40px" /></div>
+      <div class="title">PEIPL Bill Assistant</div>
+      <div class="subtitle">Starting…</div>
+      <div class="version" id="version">v1.0</div>
+    </div>
+
+    <script>
+      // Optional version injection (Electron-safe)
+      try {
+        const v =
+          (typeof process !== "undefined" &&
+            process.env &&
+            process.env.PEIPL_APP_VERSION) ||
+          "";
+        if (v) {
+          document.getElementById("version").textContent = "v" + v;
+        }
+      } catch {}
+    </script>
+  </body>
+</html>
