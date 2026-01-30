@@ -102,52 +102,51 @@ export default function Totals({ billData }) {
         ? <button
             onClick={() => setIsOpen(true)}
             aria-label="Show bill summary"
-            className="px-4 py-2 rounded bg-[#019b98] text-white font-semibold shadow hover:bg-[#13bdb2] transition-all duration-300 hover:scale-105 animate-bounce-in"
+            className="px-5 py-2.5 rounded-lg bg-gradient-to-r from-[#0d9488] to-[#0f766e] text-white font-semibold shadow-lg hover:shadow-xl hover:from-[#0f766e] hover:to-[#056064] transition-all duration-300 hover:scale-105 animate-bounce-in btn-primary"
           >
-            Show Bill Summary
+            💰 Bill Summary
           </button>
-        : <div className="w-80 rounded-xl bg-white border-2 border-[#019b98] shadow-2xl p-4 animate-scale-in">
-            <div className="flex items-center justify-between mb-3">
+        : <div className="w-96 rounded-xl bg-white border-2 border-[#0d9488] shadow-2xl p-5 animate-scale-in backdrop-blur-sm">
+            <div className="flex items-center justify-between mb-4 pb-4 border-b-2 border-[#e5e7eb]">
               <div className="flex items-center gap-3">
                 <div
-                  className="w-8 h-8 flex items-center justify-center rounded-full"
-                  style={{ background: "#019b98", border: "2px solid #311703" }}
+                  className="w-10 h-10 flex items-center justify-center rounded-lg bg-gradient-to-br from-[#0d9488] to-[#0f766e] shadow-md"
                 >
                   <svg
-                    width="18"
-                    height="18"
+                    width="20"
+                    height="20"
                     viewBox="0 0 24 24"
                     fill="none"
-                    stroke="#fff"
+                    stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    className="text-white"
                   >
                     <circle cx="12" cy="12" r="10" />
-                    <path d="M12 8v4l3 3" />
+                    <path d="M12 6v6l4 2" />
                   </svg>
                 </div>
                 <div>
                   <h3
-                    className="text-base font-bold"
-                    style={{ color: "#311703", letterSpacing: "0.5px" }}
+                    className="text-base font-bold text-[#0d9488]"
                   >
                     Bill Summary
                   </h3>
-                  <p className="text-[#019b98] text-xs leading-tight font-semibold">
-                    Amounts overview
+                  <p className="text-[#6b7280] text-xs font-medium">
+                    Amount overview
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-[#311703] hover:text-[#019b98] text-xl font-bold px-2 py-1 rounded transition"
+                className="text-[#6b7280] hover:text-[#0d9488] text-lg font-semibold px-2 py-1 rounded-md hover:bg-[#f3f4f6] transition-all duration-200"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-[#019b98]/20">
                 <div className="flex items-center gap-2">
                   <svg

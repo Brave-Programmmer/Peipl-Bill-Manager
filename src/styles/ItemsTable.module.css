@@ -1,34 +1,44 @@
 /* ============ DRAG HANDLE ============ */
 .dragHandle {
   cursor: grab;
-  color: #019b98;
+  color: var(--primary-color);
   font-size: 16px;
-  padding: 6px 8px;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-sm);
   opacity: 0.7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
 .dragHandle:hover {
   background: rgba(1, 155, 152, 0.12);
   transform: translateY(-2px);
   opacity: 1;
   box-shadow: 0 2px 8px rgba(1, 155, 152, 0.15);
 }
+
 .dragHandle:active {
   cursor: grabbing;
+}
+
+.dragHandle:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }
 
 /* ============ TABLE STRUCTURE ============ */
 .tableContainer {
   background: #fff;
-  border-radius: 12px;
+  border-radius: var(--border-radius-lg);
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
   border: 1px solid rgba(1, 155, 152, 0.15);
 }
 
 .tableHeader {
-  background: linear-gradient(135deg, #019b98 0%, #0a7a78 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
   font-weight: 700;
   text-transform: uppercase;
@@ -37,12 +47,12 @@
 }
 
 .tableHeaderCell {
-  padding: 16px 12px;
+  padding: var(--spacing-lg) var(--spacing-md);
   border-right: 1px solid rgba(255, 255, 255, 0.15);
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
-  background: linear-gradient(135deg, #019b98 0%, #0a7a78 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
 }
 
 .tableHeaderCell:last-child {
@@ -54,8 +64,8 @@
 }
 
 .tableRow {
-  border-bottom: 1px solid #e5e7eb;
-  transition: all 0.15s ease;
+  border-bottom: 1px solid var(--gray-200);
+  transition: var(--transition);
 }
 
 .tableRow:last-child {
@@ -72,7 +82,7 @@
 }
 
 .tableRow.alternating {
-  background: #f9fdfb;
+  background: var(--gray-50);
 }
 
 .tableRow.alternating:hover {
@@ -84,9 +94,9 @@
 }
 
 .tableCell {
-  padding: 14px 12px;
-  border-right: 1px solid #e5e7eb;
-  color: #1f2937;
+  padding: 14px var(--spacing-md);
+  border-right: 1px solid var(--gray-200);
+  color: var(--text-main);
   font-size: 13px;
   vertical-align: middle;
   white-space: pre-wrap;
@@ -105,23 +115,23 @@
 }
 
 .tableCellReadOnly {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: var(--gray-100);
+  color: var(--gray-600);
   font-weight: 500;
 }
 
 .totalsRow {
-  background: linear-gradient(90deg, #f3f4f6 0%, #eff6ff 100%);
-  border-top: 2px solid #019b98;
-  border-bottom: 2px solid #019b98;
+  background: linear-gradient(90deg, var(--gray-100) 0%, #eff6ff 100%);
+  border-top: 2px solid var(--primary-color);
+  border-bottom: 2px solid var(--primary-color);
   font-weight: 700;
-  color: #111827;
+  color: var(--gray-900);
 }
 
 .totalsCell {
-  padding: 14px 12px;
-  border-right: 1px solid #e5e7eb;
-  background: linear-gradient(90deg, #f3f4f6 0%, #eff6ff 100%);
+  padding: 14px var(--spacing-md);
+  border-right: 1px solid var(--gray-200);
+  background: linear-gradient(90deg, var(--gray-100) 0%, #eff6ff 100%);
 }
 
 .totalsCellNumeric {
@@ -135,21 +145,26 @@
 /* ============ INPUT STYLING ============ */
 .cellInput {
   width: 100%;
-  padding: 8px 6px;
+  padding: 8px var(--spacing-sm);
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: var(--border-radius-sm);
   background: transparent;
   color: inherit;
   font-size: 13px;
   font-family: inherit;
-  transition: all 0.15s ease;
+  transition: var(--transition);
 }
 
 .cellInput:focus {
   outline: none;
-  border-color: #019b98;
+  border-color: var(--primary-color);
   background: rgba(1, 155, 152, 0.05);
   box-shadow: 0 0 0 3px rgba(1, 155, 152, 0.1);
+}
+
+.cellInput:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -1px;
 }
 
 .cellInput:hover:not(:focus) {
@@ -157,32 +172,42 @@
   border-color: rgba(1, 155, 152, 0.2);
 }
 
+.cellInput:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .cellInputReadOnly {
-  color: #6b7280;
+  color: var(--gray-600);
   cursor: default;
-  background: #f3f4f6;
+  background: var(--gray-100);
 }
 
 .cellTextarea {
   width: 100%;
-  padding: 8px 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  padding: 8px var(--spacing-sm);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--border-radius-sm);
   background: #fafbfc;
-  color: #1f2937;
+  color: var(--text-main);
   font-size: 13px;
   font-family: inherit;
   resize: vertical;
-  transition: all 0.15s ease;
+  transition: var(--transition);
   min-height: 24px;
   max-height: 200px;
 }
 
 .cellTextarea:focus {
   outline: none;
-  border-color: #019b98;
+  border-color: var(--primary-color);
   background: #fff;
   box-shadow: 0 0 0 3px rgba(1, 155, 152, 0.1);
+}
+
+.cellTextarea:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: -1px;
 }
 
 /* ============ BUTTONS ============ */
@@ -191,21 +216,23 @@
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-radius: 8px;
-  border: none;
+  border-radius: var(--border-radius);
+  border: 2px solid;
   font-weight: 600;
   font-size: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  transition: all 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition-sm);
   cursor: pointer;
+  text-align: center;
+  white-space: nowrap;
 }
 
-.btnModern:hover {
+.btnModern:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-md);
 }
 
-.btnModern:active {
+.btnModern:active:not(:disabled) {
   transform: translateY(0) scale(0.98);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
@@ -216,56 +243,74 @@
   transform: none;
 }
 
-.btnAdd {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: white;
-  border: 2px solid #10b981;
+.btnModern:focus-visible {
+  outline: 2px solid;
+  outline-offset: 2px;
 }
 
-.btnAdd:hover {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+/* Button Variants */
+.btnAdd {
+  background: linear-gradient(135deg, var(--success-color) 0%, var(--success-dark) 100%);
+  color: white;
+  border-color: var(--success-color);
+}
+
+.btnAdd:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--success-dark) 0%, #047857 100%);
   border-color: #047857;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
-.btnCol {
-  background: rgba(1, 155, 152, 0.08);
-  color: #019b98;
-  border: 2px solid rgba(1, 155, 152, 0.2);
+.btnAdd:focus-visible {
+  outline-color: var(--success-color);
 }
 
-.btnCol:hover {
+.btnCol {
+  background: rgba(1, 155, 152, 0.08);
+  color: var(--primary-color);
+  border-color: rgba(1, 155, 152, 0.2);
+}
+
+.btnCol:hover:not(:disabled) {
   background: rgba(1, 155, 152, 0.12);
-  border-color: #019b98;
+  border-color: var(--primary-color);
   box-shadow: 0 4px 12px rgba(1, 155, 152, 0.2);
 }
 
-.btnDanger {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-  border: 2px solid #ef4444;
+.btnCol:focus-visible {
+  outline-color: var(--primary-color);
 }
 
-.btnDanger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+.btnDanger {
+  background: linear-gradient(135deg, var(--danger-color) 0%, var(--danger-dark) 100%);
+  color: white;
+  border-color: var(--danger-color);
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--danger-dark) 0%, #b91c1c 100%);
   border-color: #b91c1c;
   box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btnDanger:focus-visible {
+  outline-color: var(--danger-color);
 }
 
 .btnSmall {
   padding: 6px 10px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
 }
 
-/* ============ HOVER STATES ============ */
+/* ============ HOVER STATES & UTILITY CLASSES ============ */
 .rowHover:hover {
   background: rgba(1, 155, 152, 0.05);
 }
 
 .buffered {
   box-shadow: 0 0 0 3px rgba(1, 155, 152, 0.15);
-  border-radius: 6px;
+  border-radius: var(--border-radius-sm);
   background: rgba(1, 155, 152, 0.02);
 }
 
@@ -273,19 +318,20 @@
 .paginationControl {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 8px 12px;
-  border-radius: 8px;
-  border: 2px solid #019b98;
+  border-radius: var(--border-radius);
+  border: 2px solid var(--primary-color);
   background: linear-gradient(135deg, #e6fcfa 0%, #d1fae5 100%);
-  color: #019b98;
+  color: var(--primary-color);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: var(--transition-sm);
 }
 
 .paginationControl:hover:not(:disabled) {
-  background: linear-gradient(135deg, #019b98 0%, #0a7a78 100%);
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   color: white;
   box-shadow: 0 4px 12px rgba(1, 155, 152, 0.3);
   transform: translateY(-2px);
@@ -294,4 +340,9 @@
 .paginationControl:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.paginationControl:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 2px;
 }

@@ -1,6 +1,6 @@
 # Phoenix AI Setup Guide
 
-Phoenix AI supports free, self-hosted models for bill validation and GEM upload automation.
+Phoenix AI supports free, self-hosted models for bill validation.
 
 ## Quick Start
 

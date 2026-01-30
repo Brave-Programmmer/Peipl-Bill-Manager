@@ -36,11 +36,17 @@ if (!gotTheLock) {
 
 // Helper: Read JSON file and send to renderer as string
 function sendJsonToRenderer(filePath) {
-  if (!filePath) return;
+  if (!filePath) {
+    console.error("[File Association] No file path provided");
+    return;
+  }
+
+  console.log("[File Association] sendJsonToRenderer called with:", filePath);
 
   // Allow any bill JSON/PEIPL files regardless of naming convention
   if (!isBillFilePath(filePath)) {
     const fileName = path.basename(filePath);
+    console.error("[File Association] Invalid file type:", fileName);
     mainWindow?.webContents.send("open-file-error", {
       error:
         "Unsupported file type. Please select a .json or .peiplbill bill file.",
@@ -51,6 +57,7 @@ function sendJsonToRenderer(filePath) {
 
   fs.readFile(filePath, "utf8", (err, data) => {
     if (err) {
+      console.error("[File Association] Error reading file:", err.message);
       mainWindow?.webContents.send("open-file-error", {
         error: err.message,
         filePath,
@@ -62,6 +69,7 @@ function sendJsonToRenderer(filePath) {
 
         // Validate it's a bill file with required fields
         if (!billData.billNumber || !billData.items) {
+          console.error("[File Association] Invalid bill structure - missing billNumber or items");
           mainWindow?.webContents.send("open-file-error", {
             error:
               "Invalid bill file format. Missing required fields (billNumber or items).",
@@ -70,8 +78,16 @@ function sendJsonToRenderer(filePath) {
           return;
         }
 
-        mainWindow?.webContents.send("open-file", { data, filePath });
+        console.log("[File Association] Successfully parsed bill, sending to renderer:", {
+          filePath,
+          billNumber: billData.billNumber,
+          itemsCount: billData.items.length,
+        });
+
+        // Send as parsed JSON object with data and filePath
+        mainWindow?.webContents.send("open-file", { data: billData, filePath });
       } catch (parseError) {
+        console.error("[File Association] JSON parse error:", parseError.message);
         mainWindow?.webContents.send("open-file-error", {
           error: `Invalid JSON file: ${parseError.message}`,
           filePath,
@@ -387,42 +403,71 @@ ipcMain.handle("setup-file-associations", async () => {
     }
 
     const { exec } = require("child_process");
-    const path = require("path");
+
+    // Get the current executable path
+    // In packaged app, process.execPath is the app executable
+    // In development, it might be node.exe, but we can use app.getPath('exe')
+    let exePath = process.execPath;
+    
+    // Try to get the actual app executable path if available
+    try {
+      // app.getPath('exe') is the actual executable of the current application
+      if (app && app.getPath) {
+        const appExePath = app.getPath("exe");
+        if (appExePath && fs.existsSync(appExePath)) {
+          exePath = appExePath;
+          console.log("Using app executable path:", exePath);
+        }
+      }
+    } catch (e) {
+      console.warn("Could not get app path, using process.execPath:", e.message);
+    }
+
+    // Escape quotes in path for command line
+    const escapedPath = exePath.replace(/"/g, '\\"');
+
+    // Use Windows commands to set up file associations for bill files
+    // Create a custom file type for .peiplbill and .json extensions
+    const commands = [
+      `ftype PEIPLBillMaker="${exePath}" "%%1"`,
+      `assoc .peiplbill=PEIPLBillMaker`,
+      `assoc .json=PEIPLBillMaker`,
+    ];
 
     return new Promise((resolve) => {
-      // Get the current executable path
-      const exePath = process.execPath;
-
-      // Use Windows commands to set up file associations for bill files
-      // Create a custom file type for .peiplbill and .json extensions
-      const commands = [
-        `ftype PEIPLBillMaker="${exePath}" "%%1"`,
-        `assoc .peiplbill=PEIPLBillMaker`,
-        `assoc .json=PEIPLBillMaker`,
-      ];
-
       let completed = 0;
       let errors = [];
+      let successCount = 0;
 
       commands.forEach((command, index) => {
-        exec(command, (error, stdout, stderr) => {
+        exec(command, { shell: true }, (error, stdout, stderr) => {
           completed++;
 
           if (error) {
-            console.error(`Command ${index + 1} failed:`, command, error.message);
-            errors.push(`${command}: ${error.message}`);
+            console.error(`Command ${index + 1} failed:`, command);
+            console.error(`  Error: ${error.message}`);
+            errors.push(`Command ${index + 1}: ${error.message}`);
           } else {
             console.log(`Command ${index + 1} succeeded:`, command);
+            successCount++;
           }
 
           // When all commands are done, return result
           if (completed === commands.length) {
-            if (errors.length > 0) {
+            if (errors.length === commands.length) {
+              // All failed
               resolve({
                 success: false,
-                error: `Some file association commands failed. Please run as Administrator: ${errors.join("; ")}`,
+                error: `All file association commands failed. Please run as Administrator. ${errors.join("; ")}`,
+              });
+            } else if (errors.length > 0) {
+              // Some failed
+              resolve({
+                success: true,
+                message: `File associations partially set up (${successCount}/${commands.length} succeeded). Some commands may require Administrator privileges.`,
               });
             } else {
+              // All succeeded
               resolve({
                 success: true,
                 message: "File associations set up successfully!",
@@ -432,15 +477,15 @@ ipcMain.handle("setup-file-associations", async () => {
         });
       });
 
-      // Timeout after 10 seconds
+      // Timeout after 15 seconds
       setTimeout(() => {
         if (completed < commands.length) {
           resolve({
             success: false,
-            error: "File association setup timed out. Please try again.",
+            error: "File association setup timed out. Please try again or run as Administrator.",
           });
         }
-      }, 10000);
+      }, 15000);
     });
   } catch (error) {
     console.error("Error setting up file associations:", error);
@@ -962,67 +1007,11 @@ ipcMain.handle("copy-bill-to-gst-submitted", async (event, sourceFilePath, gstSu
   }
 });
 
-// Handle Gem upload automation (no automatic PDF generation or upload)
-// meta: { invoiceNo, subtotal, grandTotal, gstin }
-ipcMain.handle("gem-upload", async (event, meta) => {
-  try {
-    // Try running the script in-process so it's included in packaged app
-    const scriptPath = path.join(__dirname, "..", "scripts", "gem-bill-upload.js");
-
-    if (fs.existsSync(scriptPath)) {
-      try {
-        // Set env for script to read
-        process.env.GEM_BILL_META = JSON.stringify(meta || {});
-
-        // Require and call exported function if available
-        const gemModule = require(scriptPath);
-        if (gemModule && typeof gemModule.automateGemBillUpload === "function") {
-          // Run without awaiting to return immediately to renderer
-          gemModule.automateGemBillUpload().catch((err) => {
-            console.error("Gem automation (in-process) failed:", err);
-          });
-
-          return { success: true, message: "Gem upload automation started (in-process)" };
-        }
-      } catch (e) {
-        console.warn("In-process Gem automation failed, falling back to spawn:", e && e.message ? e.message : e);
-      }
-    } else {
-      return { success: false, error: "Gem upload script not found" };
-    }
-
-    // Fallback: spawn the script in a child process (original behavior)
-    let nodePath = "node";
-    const scriptProcess = spawn(nodePath, [scriptPath], {
-      cwd: path.join(__dirname, ".."),
-      stdio: "inherit",
-      shell: true,
-      detached: false,
-      env: {
-        ...process.env,
-        GEM_BILL_META: JSON.stringify(meta || {}),
-      },
-    });
-
-    scriptProcess.on("error", (error) => {
-      console.error("Error spawning Gem upload script:", error);
-    });
-
-    scriptProcess.on("exit", (code) => {
-      console.log(`Gem upload script exited with code ${code}`);
-    });
-
-    return { success: true, message: "Gem upload automation started" };
-  } catch (error) {
-    console.error("Error starting Gem upload:", error);
-    return { success: false, error: error.message };
-  }
-});
-
 // macOS: open-file event
 let pendingFilePath = null;
 app.on("open-file", (event, filePath) => {
   event.preventDefault();
+  console.log("[File Association] macOS open-file event:", filePath);
   pendingFilePath = filePath;
   if (mainWindow) {
     sendJsonToRenderer(filePath);
@@ -1038,6 +1027,7 @@ app.on("second-instance", (event, argv, workingDirectory) => {
     // Check if there's a file to open (bill_*.json or .peiplbill)
     const fileArg = argv.find((arg) => isBillFilePath(arg));
     if (fileArg) {
+      console.log("[File Association] Second instance detected, opening file:", fileArg);
       sendJsonToRenderer(fileArg);
     }
   }
@@ -1053,14 +1043,17 @@ app.whenReady().then(() => {
   // Windows/Linux: check argv for file path (bill_*.json or .peiplbill)
   const fileArg = process.argv.find((arg) => isBillFilePath(arg));
   if (fileArg) {
-    // Wait a bit for the window to be ready
+    // Wait for the window to be fully ready before sending file
+    // Increased timeout to ensure React listeners are registered
     setTimeout(() => {
+      console.log("[File Association] Initial instance detected, loading:", fileArg);
       sendJsonToRenderer(fileArg);
-    }, 1000);
+    }, 2500);
   }
 
   // macOS: handle pending file after window ready
   if (pendingFilePath) {
+    console.log("[File Association] Processing pending macOS file:", pendingFilePath);
     sendJsonToRenderer(pendingFilePath);
     pendingFilePath = null;
   }

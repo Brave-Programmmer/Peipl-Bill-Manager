@@ -1,8 +1,8 @@
-# Phoenix AI & GEM Upload Automation - Complete Integration
+# Phoenix AI - Bill Validation Integration
 
 ## Summary
 
-Integrated **free, self-hosted AI models** (Ollama, Mistral API) into Phoenix AI for bill validation and GEM upload automation. No expensive API keys required.
+Integrated **free, self-hosted AI models** (Ollama, Mistral API) into Phoenix AI for bill validation. No expensive API keys required.
 
 ---
 
@@ -19,19 +19,12 @@ Integrated **free, self-hosted AI models** (Ollama, Mistral API) into Phoenix AI
 - Fallback validation checklist if AI unavailable
 - Works 100% offline with Ollama
 
-### 3. **Automated GEM Upload Flow**
-1. User asks Phoenix to "upload to GEM"
-2. AI validates bill metadata
-3. Shows checklist to user
-4. Launches GEM uploader in system browser (with user's Chrome profile)
-5. User completes manual steps (login → select order → generate invoice)
-
-### 4. **Frontend Integration**
+### 3. **Frontend Integration**
 - Phoenix AI component now receives:
   - `billData` (invoice number, amounts, items)
   - `companyInfo` (company details, GSTIN)
   - `pdfPath` (PDF file reference)
-- Metadata automatically passed to AI analysis and upload process
+- Metadata automatically passed to AI analysis process
 
 ---
 
@@ -118,15 +111,10 @@ OLLAMA_MODEL=mistral
 - **`src/components/AIAssistant.js`**
   - Now accepts props: `billData`, `companyInfo`, `pdfPath`
   - Builds metadata for AI analysis
-  - Triggers upload process via `/api/phoenix-analyze`
+  - Triggers analysis process via `/api/phoenix-analyze`
 
 - **`src/app/page.js`**
   - Passes bill metadata to `AIAssistant` component
-
-- **`scripts/gem-bill-upload.js`**
-  - Replaced OpenAI with Ollama + Mistral
-  - Inline `callOllama()` and `callMistral()` helpers
-  - Supports free models only
 
 ---
 
@@ -135,24 +123,18 @@ OLLAMA_MODEL=mistral
 ### User Flow:
 
 ```
-User: "Upload this bill to GEM"
+User: "Analyze this bill"
   ↓
 Phoenix AI: "Analyzing bill with AI..."
   ↓
 AI (Ollama/Mistral): Validates invoice number, GSTIN, amounts
   ↓
-Phoenix: "✅ Bill looks good! Here's a 3-step checklist:
+Phoenix: "✅ Bill analysis complete! Here's the validation checklist:
           1. Invoice number is unique
           2. GSTIN format correct
           3. All items accounted for"
   ↓
-User: Clicks "Proceed"
-  ↓
-GEM Uploader: Opens system Chrome with GEM login
-  ↓
-User: Logs in → selects order → generates invoice
-  ↓
-User: Uploads PDF manually in browser
+User: Reviews analysis
 ```
 
 ---
@@ -261,10 +243,10 @@ ollama pull mistral
         └────────────────┼────────────────┘
                          │
                          ↓
-        ┌─────────────────────────────┐
-        │  GEM Uploader Process       │
-        │  (Puppeteer + System Chrome)│
-        └─────────────────────────────┘
+            ┌─────────────────────────┐
+            │   AI Analysis Result    │
+            │   (Validation Checklist)│
+            └─────────────────────────┘
 ```
 
 ---
@@ -275,7 +257,7 @@ ollama pull mistral
 - **Mistral API**: FREE tier available
 - **OpenAI**: NOT USED (was paid, now replaced)
 
-**Total cost for GEM automation: $0**
+**Total cost for bill validation: $0**
 
 ---
 
@@ -291,22 +273,19 @@ ollama pull mistral
 
 - [Ollama Documentation](https://github.com/jmorganca/ollama)
 - [Mistral API Docs](https://docs.mistral.ai/)
-- [GEM Portal](https://gem.gov.in)
 - Setup guide: `docs/AI-SETUP.md`
 
 ---
 
-## ✅ Checklist for Your First Upload
+## ✅ Checklist for Your First Use
 
 - [ ] Install Ollama (or get Mistral API key)
 - [ ] Run `ollama serve` (if using Ollama)
 - [ ] Run `node test-ai.js` to verify AI setup
 - [ ] Create a bill in the app
-- [ ] Ask Phoenix: "Upload this bill to GEM"
-- [ ] Review AI checklist
-- [ ] Click "Proceed"
-- [ ] Complete manual login and upload in browser
+- [ ] Ask Phoenix: "Analyze this bill"
+- [ ] Review AI validation checklist
 
 ---
 
-**Your GEM upload automation is now powered by free AI. Happy automating!** 🚀
+**Your bill validation is now powered by free AI. Happy analyzing!** 🚀

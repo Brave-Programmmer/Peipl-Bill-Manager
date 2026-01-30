@@ -1,11 +1,40 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import PropTypes from "prop-types";
+import dynamic from "next/dynamic";
 import LoadingSpinner from "./LoadingSpinner";
 import toast from "react-hot-toast";
-import ReportGenerator from "./ReportGenerator";
-import TagManager from "./TagManager";
-import ReminderManager from "./ReminderManager";
+import { BillFolderTrackerPropTypes } from "./BillFolderTracker.propTypes";
+import {
+  formatFileSize,
+  formatDate,
+  formatMonth,
+  getFileIcon,
+  getFileColor,
+  getCurrentMonth,
+  getBillMonth,
+  calculateGstFolderStructure,
+  validateDateRange,
+  validateFileSize,
+  parseManualSubfolders,
+} from "../utils/billTrackerHelpers";
+
+const BILL_TRACKER_PREFERENCES_KEY = "bill-folder-tracker-preferences";
+const MAX_UNDO_STACK_SIZE = 10;
+
+// Lazy load heavy sub-components to improve initial load time
+const ReportGenerator = dynamic(() => import("./ReportGenerator"), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" /></div>,
+});
+
+const TagManager = dynamic(() => import("./TagManager"), {
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-4"><div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500" /></div>,
+});
+
+
 
 export default function BillFolderTracker({ isVisible, onClose }) {
   // State management improvements
@@ -46,7 +75,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     showBillMonth: true,
     showSentMonth: true,
     notifications: true,
-    reminderDays: 7,
+
     autoSyncGst: true,
     syncInterval: 30,
   });
@@ -69,23 +98,50 @@ export default function BillFolderTracker({ isVisible, onClose }) {
   const [redoStack, setRedoStack] = useState([]);
   const [showStats, setShowStats] = useState(false);
   const [showReports, setShowReports] = useState(false);
-  const [reminders, setReminders] = useState([]);
+
   const [tags, setTags] = useState({});
+  const [metricsVersion, setMetricsVersion] = useState(0);
 
   // Virtual scrolling refs
   const scrollContainerRef = useRef(null);
+  const metricsRef = useRef({
+    lastScanDurationMs: 0,
+    lastScanAt: null,
+  });
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 20 });
   const ITEM_HEIGHT = 80; // Approximate height of each row/item
 
   // Initialize current month
   useEffect(() => {
-    const now = new Date();
-    const monthKey = `${now.getFullYear()}-${String(
-      now.getMonth() + 1
-    ).padStart(2, "0")}`;
+    const monthKey = getCurrentMonth();
     setCurrentMonth(monthKey);
     setBulkSentMonth(monthKey);
     setBulkBillMonth(monthKey);
+  }, []);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const stored = window.localStorage.getItem(
+        BILL_TRACKER_PREFERENCES_KEY
+      );
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (parsed.viewMode === "table" || parsed.viewMode === "grid") {
+        setViewMode(parsed.viewMode);
+      }
+      if (typeof parsed.fileTypeFilter === "string") {
+        setFileTypeFilter(parsed.fileTypeFilter);
+      }
+      if (typeof parsed.statusFilter === "string") {
+        setStatusFilter(parsed.statusFilter);
+      }
+      if (typeof parsed.currentMonth === "string" && parsed.currentMonth) {
+        setCurrentMonth(parsed.currentMonth);
+      }
+    } catch (e) {
+      console.error("Failed to load bill tracker preferences", e);
+    }
   }, []);
 
   // Load configuration when modal opens
@@ -94,6 +150,24 @@ export default function BillFolderTracker({ isVisible, onClose }) {
       loadConfiguration();
     }
   }, [isVisible]);
+
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      const prefs = {
+        viewMode,
+        fileTypeFilter,
+        statusFilter,
+        currentMonth,
+      };
+      window.localStorage.setItem(
+        BILL_TRACKER_PREFERENCES_KEY,
+        JSON.stringify(prefs)
+      );
+    } catch (e) {
+      console.error("Failed to save bill tracker preferences", e);
+    }
+  }, [viewMode, fileTypeFilter, statusFilter, currentMonth]);
 
   // Auto-sync with GST folder periodically
   useEffect(() => {
@@ -310,10 +384,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
           }
         }
         
-        // Load reminders and tags
-        if (configResult.config.reminders) {
-          setReminders(configResult.config.reminders);
-        }
+
         if (configResult.config.tags) {
           setTags(configResult.config.tags);
         }
@@ -346,6 +417,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     async (subfoldersToUse = null) => {
       if (!config || !window.electronAPI) return;
 
+      const startTime = performance.now();
       setIsLoading(true);
       try {
         const foldersToSearch = subfoldersToUse || subfolders;
@@ -461,6 +533,10 @@ export default function BillFolderTracker({ isVisible, onClose }) {
         handleError("Failed to scan bills", err);
       } finally {
         setIsLoading(false);
+        const duration = performance.now() - startTime;
+        metricsRef.current.lastScanDurationMs = Math.round(duration);
+        metricsRef.current.lastScanAt = new Date().toISOString();
+        setMetricsVersion((prev) => prev + 1);
       }
     },
     [
@@ -772,49 +848,17 @@ export default function BillFolderTracker({ isVisible, onClose }) {
         if (config?.gstSubmittedFolderPath) {
           if (shouldCopyFile && updates?.sentMonth) {
             try {
-              // Calculate financial year for GST folder structure
-              const sentMonth = updates.sentMonth;
-              const [sentYear, sentMonthNum] = sentMonth.split("-");
-              const sentYearNum = parseInt(sentYear, 10);
-
-              // Financial year starts in April
-              let financialYearStart = sentYearNum;
-              if (parseInt(sentMonthNum, 10) < 4) {
-                financialYearStart = sentYearNum - 1;
-              }
-              const financialYearEnd = financialYearStart + 1;
-              const yearFolderName = `${financialYearStart}-${String(
-                financialYearEnd
-              ).slice(-2)}`;
-
-              // Create month names for folder structure
-              const monthNames = [
-                "JANUARY",
-                "FEBRUARY",
-                "MARCH",
-                "APRIL",
-                "MAY",
-                "JUNE",
-                "JULY",
-                "AUGUST",
-                "SEPTEMBER",
-                "OCTOBER",
-                "NOVEMBER",
-                "DECEMBER",
-              ];
-
               const billMonth = updates.billMonth || getBillMonth();
-              const [billYear, billMonthNum] = billMonth.split("-");
-              const billMonthName = monthNames[parseInt(billMonthNum, 10) - 1];
-              const sentMonthName = monthNames[parseInt(sentMonthNum, 10) - 1];
-
-              const submissionFolderName = `${billMonthName} ${billYear} BILLS SUBMITTED IN ${sentMonthName} ${sentYear}`;
+              const { yearFolderName, submissionFolderName } = calculateGstFolderStructure(
+                updates.sentMonth,
+                billMonth
+              );
 
               const copyResult =
                 await window.electronAPI.copyBillToGstSubmitted(
                   filePath,
                   config.gstSubmittedFolderPath,
-                  sentMonth,
+                  updates.sentMonth,
                   yearFolderName,
                   submissionFolderName
                 );
@@ -922,55 +966,23 @@ export default function BillFolderTracker({ isVisible, onClose }) {
 
       for (const filePath of selectedFiles) {
         const file = allFiles.find((f) => f.path === filePath);
-        const billMonth = file
+        const fileBillMonth = file
           ? getBillMonth(file.createdDate, file.modifiedDate)
           : null;
 
         if (!updatedTrackingData.bills[filePath]) {
           updatedTrackingData.bills[filePath] = {};
         }
-        updatedTrackingData.bills[filePath].billMonth = billMonth;
+        updatedTrackingData.bills[filePath].billMonth = fileBillMonth;
         updatedTrackingData.bills[filePath].sentMonth = bulkSentMonth;
         updatedTrackingData.bills[filePath].sentAt = new Date().toISOString();
 
         if (config?.gstSubmittedFolderPath) {
           try {
-            // Calculate financial year for GST folder structure
-            const [sentYear, sentMonthNum] = bulkSentMonth.split("-");
-            const sentYearNum = parseInt(sentYear, 10);
-
-            // Financial year starts in April
-            let financialYearStart = sentYearNum;
-            if (parseInt(sentMonthNum, 10) < 4) {
-              financialYearStart = sentYearNum - 1;
-            }
-            const financialYearEnd = financialYearStart + 1;
-            const yearFolderName = `${financialYearStart}-${String(
-              financialYearEnd
-            ).slice(-2)}`;
-
-            // Create month names for folder structure
-            const monthNames = [
-              "JANUARY",
-              "FEBRUARY",
-              "MARCH",
-              "APRIL",
-              "MAY",
-              "JUNE",
-              "JULY",
-              "AUGUST",
-              "SEPTEMBER",
-              "OCTOBER",
-              "NOVEMBER",
-              "DECEMBER",
-            ];
-
-            const billMonth = billMonth || getBillMonth();
-            const [billYear, billMonthNum] = billMonth.split("-");
-            const billMonthName = monthNames[parseInt(billMonthNum, 10) - 1];
-            const sentMonthName = monthNames[parseInt(sentMonthNum, 10) - 1];
-
-            const submissionFolderName = `${billMonthName} ${billYear} BILLS SUBMITTED IN ${sentMonthName} ${sentYear}`;
+            const { yearFolderName, submissionFolderName } = calculateGstFolderStructure(
+              bulkSentMonth,
+              fileBillMonth || getCurrentMonth()
+            );
 
             await window.electronAPI.copyBillToGstSubmitted(
               filePath,
@@ -1010,33 +1022,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     }
   };
 
-  // Format file size
-  const formatFileSize = (bytes) => {
-    if (bytes < 1024) return bytes + " B";
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
-    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  // Format month
-  const formatMonth = (monthKey) => {
-    if (!monthKey) return "-";
-    const [year, month] = monthKey.split("-");
-    const date = new Date(parseInt(year), parseInt(month) - 1, 1);
-    return date.toLocaleDateString("en-IN", {
-      month: "short",
-      year: "numeric",
-    });
-  };
+  // Format functions are now imported from billTrackerHelpers
 
   // Open change folders modal
   const openChangeFoldersModal = async () => {
@@ -1079,21 +1065,12 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     let finalSelectedSubfolders = newSelectedSubfolders;
 
     if (subfolderInputMethod === "manual") {
-      try {
-        let paths;
-        if (manualSubfolders.trim().startsWith("[")) {
-          paths = JSON.parse(manualSubfolders);
-        } else {
-          paths = manualSubfolders
-            .split("\n")
-            .map((p) => p.trim())
-            .filter((p) => p.length > 0);
-        }
-        finalSelectedSubfolders = new Set(paths);
-      } catch (err) {
-        setError("Invalid manual subfolder format");
+      const parseResult = parseManualSubfolders(manualSubfolders);
+      if (!parseResult.isValid) {
+        setError(parseResult.error);
         return;
       }
+      finalSelectedSubfolders = new Set(parseResult.paths);
     }
 
     if (finalSelectedSubfolders.size === 0) {
@@ -1149,7 +1126,6 @@ export default function BillFolderTracker({ isVisible, onClose }) {
         settings: settings,
         gstSubmittedFolderPath:
           gstSubmittedFolder || (config ? config.gstSubmittedFolderPath : ""),
-        reminders: reminders,
         tags: tags,
       };
 
@@ -1194,6 +1170,10 @@ export default function BillFolderTracker({ isVisible, onClose }) {
   };
 
   const handleBatchDelete = async () => {
+    if (!window.electronAPI) {
+      handleError("This action is only available in the desktop app");
+      return;
+    }
     try {
       const result = await window.electronAPI.deleteFiles(
         Array.from(selectedFiles)
@@ -1211,6 +1191,10 @@ export default function BillFolderTracker({ isVisible, onClose }) {
   };
 
   const handleBatchMove = async () => {
+    if (!window.electronAPI) {
+      handleError("This action is only available in the desktop app");
+      return;
+    }
     try {
       const destination = await window.electronAPI.selectBillFolder();
       if (destination.success) {
@@ -1233,6 +1217,10 @@ export default function BillFolderTracker({ isVisible, onClose }) {
 
   // Export data
   const handleExportData = async () => {
+    if (!window.electronAPI) {
+      handleError("This action is only available in the desktop app");
+      return;
+    }
     try {
       const exportData = {
         files: allFiles.map((file) => ({
@@ -1287,10 +1275,16 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     if (dateRange.start && dateRange.end) {
       const startDate = new Date(dateRange.start);
       const endDate = new Date(dateRange.end);
-      filteredFiles = filteredFiles.filter((file) => {
-        const fileDate = new Date(file.modifiedDate);
-        return fileDate >= startDate && fileDate <= endDate;
-      });
+      if (
+        !Number.isNaN(startDate.getTime()) &&
+        !Number.isNaN(endDate.getTime()) &&
+        startDate <= endDate
+      ) {
+        filteredFiles = filteredFiles.filter((file) => {
+          const fileDate = new Date(file.modifiedDate);
+          return fileDate >= startDate && fileDate <= endDate;
+        });
+      }
     }
 
     // File size filter
@@ -1411,35 +1405,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     };
   }, [allFiles, trackingData, config]);
 
-  // Get file icon
-  const getFileIcon = (ext) => {
-    const icons = {
-      ".pdf": "📄",
-      ".doc": "📝",
-      ".docx": "📝",
-      ".jpg": "🖼️",
-      ".jpeg": "🖼️",
-      ".json": "📋",
-      ".peiplbill": "🧾",
-      ".peipl": "🧾",
-    };
-    return icons[ext] || "📄";
-  };
-
-  // Get file color
-  const getFileColor = (ext) => {
-    const colors = {
-      ".pdf": "bg-red-100 text-red-700 border-red-200",
-      ".doc": "bg-blue-100 text-blue-700 border-blue-200",
-      ".docx": "bg-blue-100 text-blue-700 border-blue-200",
-      ".jpg": "bg-purple-100 text-purple-700 border-purple-200",
-      ".jpeg": "bg-purple-100 text-purple-700 border-purple-200",
-      ".json": "bg-yellow-100 text-yellow-700 border-yellow-200",
-      ".peiplbill": "bg-green-100 text-green-700 border-green-200",
-      ".peipl": "bg-green-100 text-green-700 border-green-200",
-    };
-    return colors[ext] || "bg-gray-100 text-gray-700 border-gray-200";
-  };
+  // File icon and color functions are now imported from billTrackerHelpers
 
   // Toggle file selection for bulk actions
   const toggleFileSelection = (filePath) => {
@@ -1466,9 +1432,49 @@ export default function BillFolderTracker({ isVisible, onClose }) {
     setShowBulkActions(false);
   };
 
+  const handleDateRangeChange = (key, value) => {
+    const updated = { ...dateRange, [key]: value };
+    const validation = validateDateRange(updated.start, updated.end);
+    if (!validation.isValid) {
+      handleError(validation.error);
+      return;
+    }
+    setDateRange(updated);
+  };
+
+  const handleMinFileSizeChange = (event) => {
+    const value = event.target.value;
+    const validation = validateFileSize(value, maxFileSize, "min");
+    if (!validation.isValid) {
+      handleError(validation.error);
+      return;
+    }
+    setMinFileSize(validation.bytes);
+  };
+
+  const handleMaxFileSizeChange = (event) => {
+    const value = event.target.value;
+    const validation = validateFileSize(value, minFileSize, "max");
+    if (!validation.isValid) {
+      handleError(validation.error);
+      return;
+    }
+    setMaxFileSize(validation.bytes);
+  };
+
   // Handle month change
   const handleMonthChange = (event) => {
-    setCurrentMonth(event.target.value);
+    const value = event.target.value;
+    if (!value) {
+      setCurrentMonth("");
+      return;
+    }
+    const isValid = /^\d{4}-\d{2}$/.test(value);
+    if (!isValid) {
+      handleError("Invalid month format. Please use YYYY-MM.");
+      return;
+    }
+    setCurrentMonth(value);
   };
 
   // Refresh folder structure
@@ -1531,8 +1537,14 @@ export default function BillFolderTracker({ isVisible, onClose }) {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm overflow-auto p-4">
           <div
             className={`${theme.container} rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 relative`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bill-tracker-settings-title"
           >
-            <h2 className="text-2xl font-bold mb-6 flex items-center">
+            <h2
+              id="bill-tracker-settings-title"
+              className="text-2xl font-bold mb-6 flex items-center"
+            >
               <svg
                 className="w-7 h-7 mr-3 text-blue-600"
                 fill="none"
@@ -1897,24 +1909,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Reminder Days
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={30}
-                      className={`w-full border rounded-lg px-3 py-2 ${theme.input}`}
-                      value={settings.reminderDays}
-                      onChange={(e) =>
-                        setSettings((s) => ({
-                          ...s,
-                          reminderDays: Number(e.target.value),
-                        }))
-                      }
-                    />
-                  </div>
+
 
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-medium">
@@ -2008,6 +2003,10 @@ export default function BillFolderTracker({ isVisible, onClose }) {
       >
         <div
           className={`${theme.card} rounded-2xl shadow-2xl max-w-7xl w-full max-h-[95vh] flex flex-col`}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="bill-tracker-title"
+          data-metrics-version={metricsVersion}
         >
           {/* Header */}
           <div className="px-8 py-6 border-b flex items-center justify-between rounded-t-2xl">
@@ -2016,9 +2015,14 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 <span className="text-2xl text-white">🧾</span>
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Bill Tracker Pro</h1>
+                <h1
+                  id="bill-tracker-title"
+                  className="text-2xl font-bold"
+                >
+                  Bill Tracker
+                </h1>
                 <p className="text-sm">
-                  Professional bill management dashboard
+                  Bill management dashboard
                 </p>
               </div>
             </div>
@@ -2027,6 +2031,8 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 onClick={() => setShowStats(!showStats)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Statistics"
+                aria-pressed={showStats}
+                aria-label={showStats ? "Hide statistics" : "Show statistics"}
               >
                 📊
               </button>
@@ -2034,6 +2040,8 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 onClick={() => setShowReports(true)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Reports"
+                aria-haspopup="dialog"
+                aria-label="Open reports"
               >
                 📈
               </button>
@@ -2041,6 +2049,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 onClick={handleExportData}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Export Data"
+                aria-label="Export bill data"
               >
                 📤
               </button>
@@ -2048,6 +2057,8 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 onClick={() => setShowSettings(true)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 title="Settings"
+                aria-haspopup="dialog"
+                aria-label="Open settings"
               >
                 <svg
                   className="w-6 h-6"
@@ -2073,12 +2084,14 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                 onClick={handleRefresh}
                 disabled={isLoading}
                 className="px-4 py-2 text-sm font-medium bg-white border rounded-lg hover:bg-gray-50 transition-all shadow-sm disabled:opacity-50"
+                aria-label="Refresh bills"
               >
                 ↻ Refresh
               </button>
               <button
                 onClick={handleClose}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                aria-label="Close bill tracker"
               >
                 <svg
                   className="w-6 h-6"
@@ -2645,6 +2658,17 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                         <p className="text-4xl font-bold text-purple-900 mt-2">
                           {getSummaryStats().percentage}%
                         </p>
+                        <div className="mt-3 h-2 bg-purple-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.max(0, getSummaryStats().percentage)
+                              )}%`,
+                            }}
+                          />
+                        </div>
                       </div>
                       <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center shadow-lg">
                         <svg
@@ -2748,13 +2772,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                           type="number"
                           placeholder="0"
                           value={minFileSize > 0 ? minFileSize / 1024 : ""}
-                          onChange={(e) =>
-                            setMinFileSize(
-                              e.target.value
-                                ? parseFloat(e.target.value) * 1024
-                                : 0
-                            )
-                          }
+                          onChange={handleMinFileSizeChange}
                           className={`w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all group-hover:shadow-md group-hover:border-blue-200 ${theme.input}`}
                         />
                       </div>
@@ -2771,13 +2789,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                               ? maxFileSize / (1024 * 1024)
                               : ""
                           }
-                          onChange={(e) =>
-                            setMaxFileSize(
-                              e.target.value
-                                ? parseFloat(e.target.value) * 1024 * 1024
-                                : Infinity
-                            )
-                          }
+                          onChange={handleMaxFileSizeChange}
                           className={`w-full px-4 py-2.5 border-2 border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm transition-all group-hover:shadow-md group-hover:border-blue-200 ${theme.input}`}
                         />
                       </div>
@@ -2824,7 +2836,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                         type="date"
                         value={dateRange.start}
                         onChange={(e) =>
-                          setDateRange({ ...dateRange, start: e.target.value })
+                          handleDateRangeChange("start", e.target.value)
                         }
                         className={`w-full px-4 py-2.5 border rounded-lg text-sm ${theme.input}`}
                       />
@@ -2837,7 +2849,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                         type="date"
                         value={dateRange.end}
                         onChange={(e) =>
-                          setDateRange({ ...dateRange, end: e.target.value })
+                          handleDateRangeChange("end", e.target.value)
                         }
                         className={`w-full px-4 py-2.5 border rounded-lg text-sm ${theme.input}`}
                       />
@@ -2906,8 +2918,9 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                         <div className="flex items-end">
                           <button
                             onClick={handleBulkMarkAsSent}
-                            disabled={isLoading}
-                            className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                            disabled={isLoading || !bulkBillMonth || !bulkSentMonth}
+                            title={!bulkBillMonth || !bulkSentMonth ? "Please set both bill month and sent month" : ""}
+                            className="w-full px-4 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {isLoading ? "Updating..." : "Mark as Sent"}
                           </button>
@@ -3085,7 +3098,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                                   {editingSentMonth === file.path ? (
                                     <input
                                       type="month"
-                                      value={sentMonth || currentMonth}
+                                      value={sentMonth || ""}
                                       onChange={(e) =>
                                         handleUpdateSentMonth(
                                           file.path,
@@ -3111,7 +3124,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                                     >
                                       {sentMonth
                                         ? formatMonth(sentMonth)
-                                        : "Set Month"}
+                                        : status === "pending" ? "Set Month (Optional)" : "Set Month"}
                                     </button>
                                   )}
                                 </div>
@@ -3148,7 +3161,9 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                                         file.modifiedDate
                                       )
                                     }
-                                    className="text-xs hover:text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50"
+                                    disabled={!trackingData.bills?.[file.path]?.billMonth}
+                                    title={!trackingData.bills?.[file.path]?.billMonth ? "Please set bill month first" : ""}
+                                    className="text-xs hover:text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                   >
                                     Mark Sent
                                   </button>
@@ -3177,10 +3192,15 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                   <div
                     ref={scrollContainerRef}
                     className="border-2 border-gray-200 rounded-2xl overflow-hidden shadow-lg bg-white"
+                    role="grid"
+                    aria-label="Bills table"
                     style={{ height: "calc(100vh - 300px)" }}
                   >
-                    <div className="bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 border-b-2 border-gray-700 grid grid-cols-12 gap-4 px-6 py-4 text-xs font-bold uppercase tracking-widest text-white">
-                      <div className="col-span-1 flex items-center">
+                    <div
+                      className="bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 border-b-2 border-gray-700 grid grid-cols-12 gap-4 px-6 py-4 text-xs font-bold uppercase tracking-widest text-white"
+                      role="row"
+                    >
+                      <div className="col-span-1 flex items-center" role="columnheader">
                         <input
                           type="checkbox"
                           checked={
@@ -3196,18 +3216,22 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                           className="w-4 h-4 text-blue-400 bg-gray-700 border-gray-500 rounded focus:ring-2 focus:ring-blue-500"
                         />
                       </div>
-                      <div className="col-span-3 text-gray-200">File Name</div>
-                      <div className="col-span-2 text-gray-200">Folder</div>
-                      <div className="col-span-1 text-center text-gray-200">
+                      <div className="col-span-3 text-gray-200" role="columnheader">
+                        File Name
+                      </div>
+                      <div className="col-span-2 text-gray-200" role="columnheader">
+                        Folder
+                      </div>
+                      <div className="col-span-1 text-center text-gray-200" role="columnheader">
                         Size
                       </div>
-                      <div className="col-span-2 text-center text-gray-200">
+                      <div className="col-span-2 text-center text-gray-200" role="columnheader">
                         Bill Month
                       </div>
-                      <div className="col-span-1 text-center text-gray-200">
+                      <div className="col-span-1 text-center text-gray-200" role="columnheader">
                         Status
                       </div>
-                      <div className="col-span-2 text-center text-gray-200">
+                      <div className="col-span-2 text-center text-gray-200" role="columnheader">
                         Actions
                       </div>
                     </div>
@@ -3231,12 +3255,21 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                           return (
                             <div
                               key={file.path}
+                              role="row"
+                              tabIndex={0}
+                              aria-selected={isSelected}
                               className={`grid grid-cols-12 gap-4 px-6 py-4 items-center transition-all duration-200 ${
                                 isSelected
                                   ? "bg-gradient-to-r from-blue-100 to-blue-50 border-l-4 border-blue-600"
                                   : "hover:bg-gradient-to-r hover:from-gray-50 hover:to-white"
                               }`}
                               style={{ height: ITEM_HEIGHT }}
+                              onKeyDown={(e) => {
+                                if (e.key === " " || e.key === "Enter") {
+                                  e.preventDefault();
+                                  toggleFileSelection(file.path);
+                                }
+                              }}
                             >
                               <div className="col-span-1">
                                 <input
@@ -3333,7 +3366,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                                 {editingSentMonth === file.path ? (
                                   <input
                                     type="month"
-                                    value={sentMonth || currentMonth}
+                                    value={sentMonth || ""}
                                     onChange={(e) =>
                                       handleUpdateSentMonth(
                                         file.path,
@@ -3364,15 +3397,13 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                                 ) : (
                                   <button
                                     onClick={() =>
-                                      handleMarkAsSent(
-                                        file.path,
-                                        file.createdDate,
-                                        file.modifiedDate
-                                      )
+                                      setEditingSentMonth(file.path)
                                     }
                                     className="text-xs hover:text-blue-600 font-medium px-2 py-1 rounded hover:bg-blue-50"
                                   >
-                                    Mark Sent
+                                    {sentMonth
+                                      ? formatMonth(sentMonth)
+                                      : "Set Month"}
                                   </button>
                                 )}
                                 {status === "sent" && (
@@ -3428,14 +3459,18 @@ export default function BillFolderTracker({ isVisible, onClose }) {
         />
       )}
 
-      {/* Reminder Manager */}
-      <ReminderManager 
-        reminders={reminders}
-        setReminders={setReminders}
-        files={allFiles}
-        trackingData={trackingData}
-        onSave={handleSaveSettings}
-      />
+
     </>
   );
 }
+
+BillFolderTracker.propTypes = BillFolderTrackerPropTypes;
+
+export const BillFolderTrackerMeta = {
+  props: {
+    isVisible: "boolean",
+    onClose: "function",
+  },
+  behavior:
+    "Modal dashboard for configuring bill folders, tracking statuses, and managing GST submissions.",
+};

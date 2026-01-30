@@ -11,6 +11,24 @@ import {
 import dynamic from "next/dynamic";
 import SplashScreen from "../components/SplashScreen";
 import AIAssistant from "../components/AIAssistant";
+import CustomTitleBar from "../components/CustomTitleBar";
+import toast from "react-hot-toast";
+import {
+  validateCompleteBillData,
+  validateBillNumber,
+  validateCustomerName,
+  validateAddress,
+  validateGST,
+} from "../utils/validation";
+
+// Create a loading spinner component for Suspense fallback
+const LoadingFallback = () => (
+  <div className="flex items-center justify-center p-4">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+  </div>
+);
+
+// Memoized core components (loaded immediately - needed on initial render)
 const Header = memo(require("../components/Header").default);
 const CompanyInfo = memo(require("../components/CompanyInfo").default);
 const ItemsTable = memo(require("../components/ItemsTable").default);
@@ -20,27 +38,37 @@ const LoadingSpinner = memo(require("../components/LoadingSpinner").default);
 // Lazy load heavy modals/components with Suspense fallback
 const BillGenerator = dynamic(() => import("../components/BillGenerator"), {
   ssr: false,
+  loading: () => <LoadingFallback />,
 });
 const CredentialManager = dynamic(
   () => import("../components/CredentialManager"),
-  { ssr: false },
+  { 
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  },
 );
 const FileAssociationSetup = dynamic(
   () => import("../components/FileAssociationSetup"),
-  { ssr: false },
+  { 
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  },
 );
 const UserManual = dynamic(() => import("../components/UserManual"), {
   ssr: false,
+  loading: () => <LoadingFallback />,
 });
 const WelcomeGuide = dynamic(() => import("../components/WelcomeGuide"), {
   ssr: false,
+  loading: () => <LoadingFallback />,
 });
 const BillFolderTracker = dynamic(
   () => import("../components/BillFolderTracker"),
-  { ssr: false },
+  { 
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  },
 );
-import toast from "react-hot-toast";
-import CustomTitleBar from "../components/CustomTitleBar";
 
 export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
@@ -57,14 +85,47 @@ export default function Home() {
   const [showTooltips, setShowTooltips] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
+  const [pendingFileData, setPendingFileData] = useState(null);
 
   // Check if running in Electron
   useEffect(() => {
     setIsElectron(typeof window !== "undefined" && !!window.electronAPI);
   }, []);
 
+  // Early listener registration for file associations to avoid race conditions
+  // This runs immediately and buffers file data if it arrives before the component is ready
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.electronAPI) {
+      console.log("[File Association] Setting up early listeners...");
+      
+      // Set up listeners that will buffer events until the component is ready
+      window.electronAPI.onOpenFile(({ data, filePath }) => {
+        console.log("[File Association] File open event received:", { filePath, dataType: typeof data });
+        // Buffer the file data to be processed once the component is fully initialized
+        setPendingFileData({ data, filePath });
+      });
+
+      window.electronAPI.onOpenFileError(({ error, filePath }) => {
+        console.log("[File Association] File open error received:", { filePath, error });
+        setShowSplash(false);
+        const fileName = filePath ? filePath.split(/[\\/]/).pop() : "Unknown file";
+        toast.error(`❌ Error opening ${fileName}: ${error}`, {
+          duration: 5000,
+        });
+      });
+    }
+  }, []);
+
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
+  }, []);
+
+  const handleQuickSave = useCallback(() => {
+    handleSaveBillFile();
+  }, []);
+
+  const handleQuickGenerate = useCallback(() => {
+    generateBill();
   }, []);
 
   // Check if user has seen tooltips before
@@ -287,40 +348,8 @@ export default function Home() {
         window.electronAPI.onSaveBillFile(() => {
           handleSaveBillFile();
         });
-        // Listen for file association open events
-        window.electronAPI.onOpenFile(({ data, filePath }) => {
-          try {
-            const bill = JSON.parse(data);
-
-            // Extract filename for display
-            const fileName = filePath.split(/[\\/]/).pop();
-
-            // Load the bill data
-            handleLoadBillData(bill, filePath);
-
-            // Show success message with filename
-            toast.success(`✅ Bill loaded: ${fileName}`, {
-              duration: 4000,
-              icon: "📄",
-            });
-
-            // Debug info: bill loaded from file association (removed verbose console output)
-          } catch (err) {
-            console.error("Error parsing bill file:", err);
-            toast.error(`❌ Invalid bill file: ${err.message}`, {
-              duration: 5000,
-            });
-          }
-        });
-        window.electronAPI.onOpenFileError(({ error, filePath }) => {
-          const fileName = filePath
-            ? filePath.split(/[\\/]/).pop()
-            : "Unknown file";
-          toast.error(`❌ Error opening ${fileName}: ${error}`, {
-            duration: 5000,
-          });
-          console.error("File open error:", { error, filePath });
-        });
+        // Note: onOpenFile listeners are now set up earlier to avoid race conditions
+        // See the early listener registration effect above
       }
       setInitialized(true);
       return () => {
@@ -341,6 +370,50 @@ export default function Home() {
       };
     }
   }, [showSplash, initialized]);
+
+  // Process pending file data once the component is fully initialized
+  // This handles the case where file association event fires before listeners are registered
+  useEffect(() => {
+    if (pendingFileData && initialized && !showSplash) {
+      console.log("[File Association] Processing pending file data...", { filePath: pendingFileData.filePath });
+      try {
+        const bill = typeof pendingFileData.data === "string" 
+          ? JSON.parse(pendingFileData.data) 
+          : pendingFileData.data;
+        
+        const fileName = pendingFileData.filePath.split(/[\\/]/).pop();
+        
+        // Load the bill data - handleLoadBillData will be available by this point
+        // since the component is fully initialized
+        const processPendingFile = async () => {
+          try {
+            await handleLoadBillData(bill, pendingFileData.filePath);
+            // Show success message with filename
+            toast.success(`✅ Bill loaded: ${fileName}`, {
+              duration: 4000,
+              icon: "📄",
+            });
+          } catch (err) {
+            console.error("Error loading pending file:", err);
+            toast.error(`❌ Error loading bill: ${err.message}`, {
+              duration: 5000,
+            });
+          }
+        };
+        
+        processPendingFile();
+        
+        // Clear pending data
+        setPendingFileData(null);
+      } catch (err) {
+        console.error("Error processing pending file data:", err);
+        toast.error(`❌ Invalid bill file: ${err.message}`, {
+          duration: 5000,
+        });
+        setPendingFileData(null);
+      }
+    }
+  }, [pendingFileData, initialized, showSplash]);
 
   // Enhanced bill data loading function
   const handleLoadBillData = async (data, filePath) => {
@@ -384,7 +457,7 @@ export default function Home() {
       // Validate essential bill fields
       const billToValidate = data.billData || data;
       if (!billToValidate.items || !Array.isArray(billToValidate.items)) {
-        toast.warning(
+        console.warn(
           "Loaded file doesn't contain bill items. Starting with empty bill.",
         );
         setBillData((prev) => ({
@@ -409,7 +482,10 @@ export default function Home() {
         }));
       }
 
-      toast.success(`Bill loaded successfully from: ${filePath}`);
+      const fileName = filePath.split(/[\\/]/).pop();
+      toast.success(`Bill loaded successfully: ${fileName}`, {
+        duration: 3000,
+      });
     } catch (error) {
       console.error("Error loading bill data:", error);
       toast.error(`Error loading bill data: ${error.message}`);
@@ -534,46 +610,25 @@ export default function Home() {
   }, [companyInfo]);
 
   const generateBill = useCallback(async () => {
-    // Enhanced validation
-    const errors = [];
+    // Use enhanced validation utilities
+    const validation = validateCompleteBillData(billData, companyInfo);
 
-    if (!billData.billNumber.trim()) {
-      errors.push("Please enter a Bill Number");
-    }
-    if (!billData.customerName.trim()) {
-      errors.push("Please enter Customer Name");
-    }
-    if (!billData.customerAddress.trim()) {
-      errors.push("Please enter Customer Address");
-    }
-    if (!billData.customerGST.trim()) {
-      errors.push("Please enter Customer GST Number");
-    }
-    // Validate items
-    if (billData.items.length === 0) {
-      errors.push("Please add at least one item");
-    } else {
-      billData.items.forEach((item, index) => {
-        if (!item.description.trim()) {
-          errors.push(`Item ${index + 1}: Description is required`);
-        }
-        if (item.quantity <= 0) {
-          errors.push(`Item ${index + 1}: Quantity must be greater than 0`);
-        }
-        if (item.rate < 0) {
-          errors.push(`Item ${index + 1}: Rate cannot be negative`);
-        }
-        if (item.cgstRate < 0 || item.cgstRate > 100) {
-          errors.push(`Item ${index + 1}: CGST Rate must be between 0 and 100`);
-        }
-        if (item.sgstRate < 0 || item.sgstRate > 100) {
-          errors.push(`Item ${index + 1}: SGST Rate must be between 0 and 100`);
-        }
-      });
-    }
+    if (!validation.valid) {
+      // Show summary of errors
+      const errorMessage = validation.errors.slice(0, 3).join("\n");
+      const remainingCount = validation.errors.length - 3;
 
-    if (errors.length > 0) {
-      errors.forEach((err) => toast.error(err)); // ✅ Show each error as a toast
+      toast.error(
+        errorMessage +
+          (remainingCount > 0 ? `\n...and ${remainingCount} more errors` : ""),
+        {
+          duration: 5000,
+          icon: "❌",
+        }
+      );
+
+      // Log all errors for debugging
+      console.warn("Bill validation errors:", validation.errors);
       return;
     }
 
@@ -582,13 +637,20 @@ export default function Home() {
       // Simulate loading
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setShowBill(true);
+      toast.success("Bill generated successfully!", {
+        icon: "✅",
+        duration: 2000,
+      });
     } catch (error) {
       console.error("Error generating bill:", error);
-      toast.error("Error generating bill. Please try again.");
+      toast.error("Error generating bill. Please try again.", {
+        icon: "❌",
+        duration: 4000,
+      });
     } finally {
       setIsLoading(false);
     }
-  }, [billData]);
+  }, [billData, companyInfo]);
 
   const closeBill = useCallback(() => {
     setShowBill(false);
@@ -648,8 +710,10 @@ export default function Home() {
       <Header
         onToggleSidebar={toggleSidebar}
         sidebarOpen={sidebarOpen}
+        onQuickSave={handleQuickSave}
+        onQuickGenerate={handleQuickGenerate}
       />
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {isLoading
           ? <div className="flex items-center justify-center min-h-96">
               <LoadingSpinner

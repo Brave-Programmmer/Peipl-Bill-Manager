@@ -1,6 +1,6 @@
 {
   "name": "peipl-bill-maker",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
@@ -15,7 +15,6 @@
     "electron-build": "npm run build && electron-builder",
     "dist": "npm run build && electron-builder --publish=never",
     "setup-associations": "node install-file-associations.js",
-    "gem-upload": "node scripts/gem-bill-upload.js",
     "install-playwright": "npx playwright install chromium"
   },
   "dependencies": {
@@ -28,20 +27,19 @@
     "mathjs": "^14.7.0",
     "next": "^15.5.9",
     "postcss": "^8.5.6",
+    "prop-types": "^15.8.1",
     "puppeteer": "^24.34.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-draggable": "^4.5.0",
     "react-hot-toast": "^2.6.0",
-    "react-icons": "^5.5.0",
-    "react-window": "^2.2.4"
+    "react-icons": "^5.5.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
     "@tailwindcss/postcss": "^4",
     "concurrently": "^8.2.2",
     "electron": "^38.1.2",
-    "electron-builder": "^24.6.4",
+    "electron-builder": "^26.4.0",
     "playwright": "^1.57.0",
     "tailwindcss": "^4.1.12",
     "wait-on": "^7.2.0"

@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
-import { runAIAnalysis, startGemUploader } from "../../../utils/phoenixAI";
+import { runAIAnalysis } from "../../../utils/phoenixAI";
 
 /**
  * Phoenix AI API Route
- * Supports "analyze" and "upload" actions for GEM bill automation
+ * Supports "analyze" action for bill validation
  *
  * Actions:
  * - analyze: Run AI analysis on bill metadata (free models)
- * - upload: Start GEM uploader process (after AI checks)
  */
 export async function POST(req) {
   try {
@@ -17,7 +16,7 @@ export async function POST(req) {
     if (action === "analyze") {
       try {
         // Call free AI model (Ollama or Mistral)
-        const reply = await runAIAnalysis(meta || {}, message || "Please validate this bill for GEM upload");
+        const reply = await runAIAnalysis(meta || {}, message || "Please validate this bill");
         
         return NextResponse.json({
           success: true,
@@ -40,10 +39,9 @@ export async function POST(req) {
 
 **Next Steps:**
 - Review the checklist above
-- Click "Proceed to Upload" to continue with GEM automation
-- If all checks pass, the uploader will start in your browser
+- Ensure all checks pass before proceeding
 
-**Note:** AI analysis failed, but you can still upload manually.`;
+**Note:** AI analysis failed, but you can still validate manually.`;
 
         return NextResponse.json({
           success: true,
@@ -55,32 +53,6 @@ export async function POST(req) {
       }
     }
 
-    if (action === "upload") {
-      // Start the GEM uploader as a detached process on the server/machine
-      try {
-        const result = await startGemUploader(meta || {}, options || {});
-        if (result.success) {
-          return NextResponse.json({
-            success: true,
-            message: result.message,
-            uploader: {
-              pid: result.pid,
-              startTime: new Date().toISOString(),
-            },
-          });
-        }
-        return NextResponse.json(
-          { success: false, error: result.error },
-          { status: 500 }
-        );
-      } catch (uploadErr) {
-        console.error("/api/phoenix upload error:", uploadErr);
-        return NextResponse.json(
-          { success: false, error: uploadErr.message || "Failed to start uploader" },
-          { status: 500 }
-        );
-      }
-    }
 
     return NextResponse.json({ success: false, error: "Unknown action" }, { status: 400 });
   } catch (err) {

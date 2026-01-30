@@ -1,6 +1,16 @@
-const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs");
+/**
+ * Get the fetch function - uses native fetch if available (Node 18+)
+ */
+function getFetchFunction() {
+  if (typeof globalThis !== "undefined" && globalThis.fetch) {
+    return globalThis.fetch;
+  }
+  // For server-side in older Node.js versions, use native fetch if available
+  if (typeof fetch !== "undefined") {
+    return fetch;
+  }
+  throw new Error("Fetch API not available. Requires Node.js 18+ or a polyfill.");
+}
 
 /**
  * AI Provider Configuration
@@ -19,9 +29,9 @@ const fs = require("fs");
  * Generate bill validation prompt
  */
 function generateBillPrompt(meta = {}, userMessage = "") {
-  return `You are Phoenix AI, a billing assistant for GEM (Government e-Marketplace) uploads.
+  return `You are Phoenix AI, a billing assistant for invoice validation.
 
-User request: ${userMessage || "Please validate this bill for GEM upload"}
+User request: ${userMessage || "Please validate this bill"}
 
 Bill Metadata:
 ${JSON.stringify(meta, null, 2)}
@@ -29,7 +39,7 @@ ${JSON.stringify(meta, null, 2)}
 Provide:
 1. A validation checklist (3-5 items)
 2. Any potential issues or warnings
-3. A 3-step upload guide for GEM
+3. A 3-step next steps guide
 
 Keep response concise and actionable.`;
 }
@@ -40,7 +50,7 @@ Keep response concise and actionable.`;
 async function callOllama(prompt, model = "mistral") {
   try {
     const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-    const fetchFn = typeof fetch === "function" ? fetch : require("node-fetch");
+    const fetchFn = getFetchFunction();
 
     const res = await fetchFn(`${baseUrl}/api/generate`, {
       method: "POST",
@@ -73,7 +83,7 @@ async function callMistral(prompt) {
     const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) throw new Error("MISTRAL_API_KEY not set");
 
-    const fetchFn = typeof fetch === "function" ? fetch : require("node-fetch");
+    const fetchFn = getFetchFunction();
 
     const res = await fetchFn("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
@@ -105,7 +115,7 @@ async function callMistral(prompt) {
  * Main AI analysis function
  * Tries Ollama first (local, always free), then Mistral API if configured
  */
-async function runAIAnalysis(meta = {}, userMessage = "Please analyze for GEM upload") {
+async function runAIAnalysis(meta = {}, userMessage = "Please analyze") {
   try {
     const provider = (process.env.AI_PROVIDER || "ollama").toLowerCase();
     const prompt = generateBillPrompt(meta, userMessage);
@@ -138,45 +148,4 @@ async function runAIAnalysis(meta = {}, userMessage = "Please analyze for GEM up
   }
 }
 
-/**
- * Start GEM uploader as a child process. Returns an object with success and message.
- * This keeps uploader behaviour outside the web thread and works in packaged apps.
- */
-function startGemUploader(meta = {}, options = {}) {
-  return new Promise((resolve) => {
-    try {
-      const projectRoot = path.join(__dirname, "..", "..");
-      const scriptPath = path.join(projectRoot, "scripts", "gem-bill-upload.js");
-
-      if (!fs.existsSync(scriptPath)) {
-        return resolve({ success: false, error: "Gem uploader script not found" });
-      }
-
-      // Prefer a real node executable. If process.execPath is Node, use it; otherwise fall back to 'node' in PATH.
-      let nodePath = "node";
-      try {
-        const execBase = path.basename(process.execPath).toLowerCase();
-        if (execBase.includes("node")) nodePath = process.execPath;
-      } catch (e) {}
-
-      const env = { ...process.env, GEM_BILL_META: JSON.stringify(meta || {}) };
-      if (options.openInSystemBrowser) env.OPEN_IN_SYSTEM_BROWSER = "1";
-
-      const child = spawn(nodePath, [scriptPath], {
-        cwd: projectRoot,
-        env,
-        stdio: "ignore",
-        detached: true,
-        shell: true,
-      });
-
-      child.unref();
-
-      return resolve({ success: true, message: "Gem uploader started" });
-    } catch (err) {
-      return resolve({ success: false, error: String(err) });
-    }
-  });
-}
-
-module.exports = { runAIAnalysis, startGemUploader };
+export { runAIAnalysis };

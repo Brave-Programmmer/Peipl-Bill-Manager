@@ -43,17 +43,27 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
 
       if (result?.success) {
         setSetupStatus("success");
-        toast.success(
-          "✅ File associations configured! You can now open .json and .peiplbill files directly with this app.",
+        // Check if it was fully successful or partial
+        const isPartial = result?.message?.includes("partially");
+        const toastFn = isPartial ? toast : toast.success;
+        
+        toastFn(
+          isPartial
+            ? `⚠️ Partial success: ${result.message}\n\nSome features may require Administrator privileges.`
+            : "✅ File associations configured! You can now open .json and .peiplbill files directly with this app.",
           {
-            duration: 5000,
-            icon: "📄",
+            duration: isPartial ? 6000 : 5000,
+            icon: isPartial ? "⚠️" : "📄",
+            style: isPartial ? {
+              maxWidth: "500px",
+              whiteSpace: "pre-wrap",
+            } : {},
           }
         );
         // Auto-close after success
         setTimeout(() => {
           onClose();
-        }, 2500);
+        }, isPartial ? 3500 : 2500);
       } else {
         setSetupStatus("error");
         const errorMsg = result?.error || "Unknown error occurred";

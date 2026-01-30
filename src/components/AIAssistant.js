@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
+import dynamic from "next/dynamic";
 import {
   FiSend,
   FiX,
@@ -40,42 +41,80 @@ export default function AIAssistant({
   // Topic detection functions
   const detectTopic = (message) => {
     const lower = message.toLowerCase();
-    if (
-      lower.includes("save") ||
-      lower.includes("export") ||
-      lower.includes("file")
-    )
-      return "files";
-    if (lower.includes("print") || lower.includes("pdf")) return "printing";
-    if (
-      lower.includes("gst") ||
-      lower.includes("tax") ||
-      lower.includes("calculate")
-    )
-      return "calculations";
-    if (
-      lower.includes("item") ||
-      lower.includes("product") ||
-      lower.includes("add")
-    )
-      return "items";
-    if (lower.includes("company") || lower.includes("info")) return "setup";
-    return "general";
+
+    // Enhanced topic detection with better keyword matching
+    const topicPatterns = {
+      files: [
+        "save",
+        "export",
+        "file",
+        "download",
+        "upload",
+        "import",
+        "json",
+        "pdf",
+      ],
+      printing: ["print", "pdf", "export", "page", "margin", "layout"],
+      calculations: [
+        "gst",
+        "tax",
+        "calculate",
+        "total",
+        "amount",
+        "subtotal",
+        "discount",
+        "rate",
+      ],
+      items: [
+        "item",
+        "product",
+        "add",
+        "remove",
+        "quantity",
+        "rate",
+        "description",
+      ],
+      setup: [
+        "company",
+        "info",
+        "business",
+        "details",
+        "settings",
+        "configure",
+      ],
+      billing: ["bill", "invoice", "customer", "date", "number"],
+      customer: ["customer", "client", "recipient", "buyer", "name", "address"],
+    };
+
+    // Score each topic based on keyword matches
+    let topicScores = {};
+    for (const [topic, keywords] of Object.entries(topicPatterns)) {
+      topicScores[topic] = keywords.filter((kw) => lower.includes(kw)).length;
+    }
+
+    // Return topic with highest score, default to general
+    const maxTopic = Object.entries(topicScores).reduce(
+      (max, [topic, score]) => (score > max[1] ? [topic, score] : max),
+      ["general", 0],
+    );
+
+    return maxTopic[1] > 0 ? maxTopic[0] : "general";
   };
 
   const detectIntent = (message) => {
     const lower = message.toLowerCase();
-    if (lower.includes("how to") || lower.includes("how do")) return "tutorial";
-    if (lower.includes("what is") || lower.includes("explain"))
-      return "explanation";
-    if (
-      lower.includes("problem") ||
-      lower.includes("error") ||
-      lower.includes("not working")
-    )
+
+    // Enhanced intent detection with better patterns
+    if (lower.match(/how\s+(to|do)/i) || lower.match(/guide|tutorial|step/i))
+      return "tutorial";
+    if (lower.match(/what\s+is|explain|describe/i)) return "explanation";
+    if (lower.match(/problem|error|not working|issue|fail|bug/i))
       return "troubleshooting";
-    if (lower.includes("can i") || lower.includes("is it possible"))
+    if (lower.match(/can\s+i|is\s+it\s+possible|do\s+you\s+support/i))
       return "capability";
+    if (lower.match(/help|assist|need|struggling/i)) return "request_help";
+    if (lower.match(/why|reason|because/i)) return "explanation";
+    if (lower.match(/quick|fast|easy|simple/i)) return "quick_answer";
     return "question";
   };
 
@@ -122,53 +161,27 @@ export default function AIAssistant({
     setIsTyping(true);
 
     try {
-      // If the user asks about GEM upload or analysis, call server-side Phoenix analyze API
+      // If the user asks about analysis, call server-side Phoenix analyze API
       const lower = input.toLowerCase();
-      const triggerKeywords = ["gem", "gem upload", "analyze", "upload to gem"];
+      const triggerKeywords = ["analyze"];
       const shouldCallServer = triggerKeywords.some((k) => lower.includes(k));
 
       if (shouldCallServer) {
         try {
-          // If user requested an upload action, call server to start uploader
-          const uploadTriggers = ["upload to gem", "start gem upload", "upload invoice to gem", "upload to gem portal", "upload to gem portal"]; 
-          const wantsUpload = uploadTriggers.some((t) => lower.includes(t));
-
-          if (wantsUpload) {
-            // Build metadata from available bill state
-            const meta = {
-              invoiceNo: billData?.billNumber || "",
-              subtotal: typeof billData === "object" && billData.items ? billData.items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0) : undefined,
-              grandTotal: typeof billData === "object" ? (billData.total || undefined) : undefined,
-              gstin: companyInfo?.gst || billData?.customerGST || undefined,
-              pdfPath: pdfPath || undefined,
-            };
-
-            const resp = await fetch("/api/phoenix-analyze", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ action: "upload", meta, options: { openInSystemBrowser: true } }),
-            });
-            const data = await resp.json();
-            if (data?.success) {
-              setMessages((prev) => [
-                ...prev,
-                { role: "assistant", content: "✅ GEM upload automation started on this machine. Follow the browser prompts to complete the upload.", timestamp: new Date().toISOString() },
-              ]);
-            } else {
-              setMessages((prev) => [
-                ...prev,
-                { role: "assistant", content: `⚠️ Failed to start GEM upload: ${data?.error || 'Unknown error'}`, timestamp: new Date().toISOString() },
-              ]);
-            }
-            setIsTyping(false);
-            return;
-          }
-
-          // send metadata with analysis request too
+          // send metadata with analysis request
           const analyzeMeta = {
             invoiceNo: billData?.billNumber || "",
-            subtotal: typeof billData === "object" && billData.items ? billData.items.reduce((s,i)=>s+(parseFloat(i.amount)||0),0) : undefined,
-            grandTotal: typeof billData === "object" ? (billData.total || undefined) : undefined,
+            subtotal:
+              typeof billData === "object" && billData.items
+                ? billData.items.reduce(
+                    (s, i) => s + (parseFloat(i.amount) || 0),
+                    0,
+                  )
+                : undefined,
+            grandTotal:
+              typeof billData === "object"
+                ? billData.total || undefined
+                : undefined,
             gstin: companyInfo?.gst || billData?.customerGST || undefined,
             pdfPath: pdfPath || undefined,
           };
@@ -176,13 +189,22 @@ export default function AIAssistant({
           const resp = await fetch("/api/phoenix-analyze", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ action: "analyze", meta: analyzeMeta, message: input }),
+            body: JSON.stringify({
+              action: "analyze",
+              meta: analyzeMeta,
+              message: input,
+            }),
           });
           const data = await resp.json();
-          const responseText = data?.reply || data?.error || "No analysis available";
+          const responseText =
+            data?.reply || data?.error || "No analysis available";
           setMessages((prev) => [
             ...prev,
-            { role: "assistant", content: responseText, timestamp: new Date().toISOString() },
+            {
+              role: "assistant",
+              content: responseText,
+              timestamp: new Date().toISOString(),
+            },
           ]);
           setIsTyping(false);
           return;
@@ -193,26 +215,30 @@ export default function AIAssistant({
       }
 
       // Enhanced response with context awareness (local)
-      setTimeout(() => {
-        const response = generateSmartResponse(input, conversationContext);
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: response,
-            timestamp: new Date().toISOString(),
-            context: conversationContext.currentTopic,
-          },
-        ]);
-        setIsTyping(false);
-      }, 800 + Math.random() * 400);
+      setTimeout(
+        () => {
+          const response = generateSmartResponse(input, conversationContext);
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: response,
+              timestamp: new Date().toISOString(),
+              context: conversationContext.currentTopic,
+            },
+          ]);
+          setIsTyping(false);
+        },
+        800 + Math.random() * 400,
+      );
     } catch (error) {
       console.error("Error getting AI response:", error);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "🤔 I'm having trouble processing your request right now. Could you try asking again?",
+          content:
+            "🤔 I'm having trouble processing your request right now. Could you try asking again?",
           timestamp: new Date().toISOString(),
           isError: true,
         },
@@ -484,128 +510,126 @@ export default function AIAssistant({
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      {isOpen
-        ? <div className="w-96 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col h-[600px] border border-gray-200 animate-fade-in">
-            {/* Enhanced Header */}
-            <div className="bg-gradient-to-r from-[#019b98] to-[#136664] text-white p-4 flex justify-between items-center">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                  <FiZap className="text-white text-xl" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-lg">Phoenix AI</h3>
-                  <p className="text-white/80 text-sm">
-                    Smart billing assistant
-                  </p>
-                </div>
+      {isOpen ? (
+        <div className="w-96 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col h-[600px] border border-gray-200 animate-fade-in">
+          {/* Enhanced Header */}
+          <div className="bg-gradient-to-r from-[#019b98] to-[#136664] text-white p-4 flex justify-between items-center">
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                <FiZap className="text-white text-xl" />
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 rounded-full hover:bg-white/20 transition-colors"
-                aria-label="Close assistant"
-              >
-                <FiX className="text-white" />
-              </button>
+              <div>
+                <h3 className="font-bold text-lg">Phoenix AI</h3>
+                <p className="text-white/80 text-sm">Billing assistant</p>
+              </div>
             </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-2 rounded-full hover:bg-white/20 transition-colors"
+              aria-label="Close assistant"
+            >
+              <FiX className="text-white" />
+            </button>
+          </div>
 
-            {/* Messages with enhanced styling */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-              {messages.map((message, index) => (
+          {/* Messages with enhanced styling */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            {messages.map((message, index) => (
+              <div
+                key={index}
+                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+              >
                 <div
-                  key={index}
-                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  className={`max-w-[85%] p-4 rounded-lg ${
+                    message.role === "user"
+                      ? "bg-[#019b98] text-white rounded-br-none"
+                      : message.isError
+                        ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-none"
+                        : message.isWelcome
+                          ? "bg-blue-50 border border-blue-200 text-blue-800 rounded-bl-none"
+                          : "bg-white border border-gray-200 rounded-bl-none shadow-sm"
+                  }`}
                 >
-                  <div
-                    className={`max-w-[85%] p-4 rounded-lg ${
-                      message.role === "user"
-                        ? "bg-[#019b98] text-white rounded-br-none"
-                        : message.isError
-                          ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-none"
-                          : message.isWelcome
-                            ? "bg-blue-50 border border-blue-200 text-blue-800 rounded-bl-none"
-                            : "bg-white border border-gray-200 rounded-bl-none shadow-sm"
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {message.content}
-                    </div>
-                    <div className="text-xs mt-1 opacity-60 text-right">
-                      {new Date(message.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
+                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {message.content}
+                  </div>
+                  <div className="text-xs mt-1 opacity-60 text-right">
+                    {new Date(message.timestamp).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </div>
                 </div>
-              ))}
-              {isTyping && (
-                <div className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 w-fit">
-                  <div className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"></div>
-                  <div
-                    className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
-                    style={{ animationDelay: "150ms" }}
-                  ></div>
-                  <div
-                    className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
-                    style={{ animationDelay: "300ms" }}
-                  ></div>
-                </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-
-            {/* Enhanced Quick Actions */}
-            <div className="px-4 pt-3 pb-2 border-t border-gray-200 bg-white">
-              <div className="flex flex-wrap gap-2 mb-2">
-                {getQuickActions().map((action, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setInput(action.prompt)}
-                    className="text-xs bg-gradient-to-r from-[#019b98]/10 to-[#136664]/10 hover:from-[#019b98]/20 hover:to-[#136664]/20 text-[#019b98] px-3 py-2 rounded-full transition-all duration-200 border border-[#019b98]/20"
-                  >
-                    {action.text}
-                  </button>
-                ))}
               </div>
-            </div>
-
-            {/* Enhanced Input */}
-            <form
-              onSubmit={handleSendMessage}
-              className="p-4 border-t border-gray-200 bg-white"
-            >
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask me anything about billing..."
-                  className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent transition-all"
-                  disabled={isTyping}
-                />
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isTyping}
-                  className="bg-[#019b98] text-white p-2 rounded-lg hover:bg-[#017a77] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
-                >
-                  {isTyping
-                    ? <FiLoader className="animate-spin" />
-                    : <FiSend />}
-                </button>
+            ))}
+            {isTyping && (
+              <div className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 w-fit">
+                <div className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"></div>
+                <div
+                  className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                ></div>
+                <div
+                  className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                ></div>
               </div>
-              <div className="text-xs text-gray-500 mt-2 text-center">
-                💡 Try asking "Phoenix, save my bill" or "Phoenix, generate my
-                bill" or "How to add GST?"
-              </div>
-            </form>
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        : <button
-            onClick={() => setIsOpen(true)}
-            className="w-14 h-14 bg-[#019b98] text-white rounded-full shadow-lg hover:bg-[#017a77] transition-all duration-300 flex items-center justify-center hover:scale-110"
-            aria-label="Open AI Assistant"
+
+          {/* Enhanced Quick Actions */}
+          <div className="px-4 pt-3 pb-2 border-t border-gray-200 bg-white">
+            <div className="flex flex-wrap gap-2 mb-2">
+              {getQuickActions().map((action, index) => (
+                <button
+                  key={index}
+                  onClick={() => setInput(action.prompt)}
+                  className="text-xs bg-gradient-to-r from-[#019b98]/10 to-[#136664]/10 hover:from-[#019b98]/20 hover:to-[#136664]/20 text-[#019b98] px-3 py-2 rounded-full transition-all duration-200 border border-[#019b98]/20"
+                >
+                  {action.text}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Enhanced Input */}
+          <form
+            onSubmit={handleSendMessage}
+            className="p-4 border-t border-gray-200 bg-white"
           >
-            <FiMessageCircle size={24} />
-          </button>}
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask me anything about billing..."
+                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent transition-all"
+                disabled={isTyping}
+              />
+              <button
+                type="submit"
+                disabled={!input.trim() || isTyping}
+                className="bg-[#019b98] text-white p-2 rounded-lg hover:bg-[#017a77] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+              >
+                {isTyping ? <FiLoader className="animate-spin" /> : <FiSend />}
+              </button>
+            </div>
+            <div className="text-xs text-gray-500 mt-2 text-center">
+              💡 Try asking "Phoenix, save my bill" or "Phoenix, generate my
+              bill" or "How to add GST?"
+            </div>
+          </form>
+        </div>
+      ) : (
+        <button
+          onClick={() => setIsOpen(true)}
+          className="w-14 h-14 bg-[#019b98] text-white rounded-full shadow-lg hover:bg-[#017a77] transition-all duration-300 flex items-center justify-center hover:scale-110"
+          aria-label="Open AI Assistant"
+        >
+          <FiMessageCircle size={24} />
+        </button>
+      )}
     </div>
   );
 }

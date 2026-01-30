@@ -114,9 +114,11 @@ export default function ItemsTable({
   // Print width preset: 'narrow' | 'default' | 'wide'
   const [printWidthPreset, setPrintWidthPreset] = useState("default");
 
-
   const [showBulkAddModal, setShowBulkAddModal] = useState(false);
   const [bulkAddCount, setBulkAddCount] = useState(1);
+
+  // View mode state: 'invoice' (default) or 'table' (legacy)
+  const [viewMode, setViewMode] = useState("invoice");
 
   // Pagination state - configurable rows per page
   const rowsPerPage =
@@ -166,7 +168,7 @@ export default function ItemsTable({
       }));
       setShowDateModal(null);
     },
-    [billData.date]
+    [billData.date],
   );
 
   // Ensure every item has a stable id to prevent React remounts which can cause input focus loss
@@ -174,7 +176,7 @@ export default function ItemsTable({
     if (!billData?.items || billData.items.length === 0) return;
     const missing = billData.items.some(
       (it) =>
-        !it || typeof it.id === "undefined" || it.id === null || it.id === ""
+        !it || typeof it.id === "undefined" || it.id === null || it.id === "",
     );
     if (missing) {
       setBillData((prev) => ({
@@ -190,7 +192,7 @@ export default function ItemsTable({
 
   // dnd-kit sensors
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
   );
 
   // Column type modal state
@@ -226,35 +228,51 @@ export default function ItemsTable({
   const [newColSpecificPage, setNewColSpecificPage] = useState(1);
   // Editing is handled locally inside the EditableCell component using useState.
 
-  // Formula validator using mathjs to parse expressions and ensure referenced columns exist
+  // Enhanced formula validator with better error messages and security checks
   const validateFormula = useCallback((formula, availableCols) => {
     if (!formula || !formula.trim())
       return { valid: false, error: "Formula cannot be empty" };
 
-    // Quick forbidden chars check (disallow semicolon to avoid statements)
-    if (/[;\[\]{}]/.test(formula))
-      return { valid: false, error: "Formula contains invalid characters" };
+    const trimmed = formula.trim();
+
+    // Forbidden characters: prevent code injection and statements
+    const forbiddenChars = /[;{}\[\]`$]/;
+    if (forbiddenChars.test(trimmed))
+      return {
+        valid: false,
+        error: "Formula contains invalid characters (;, {}, [], `, $)",
+      };
+
+    // Check for suspicious patterns (SQL injection, code injection, etc.)
+    const suspiciousPatterns = [/(import|require|eval|exec|system)/gi];
+    if (suspiciousPatterns.some((p) => p.test(trimmed)))
+      return { valid: false, error: "Formula contains forbidden keywords" };
 
     // Try parse with mathjs
     try {
-      const node = math.parse(formula);
+      const node = math.parse(trimmed);
       // collect symbol nodes
       const symbols = [];
       node.traverse(function (n) {
         if (n.isSymbolNode) symbols.push(n.name);
       });
       const unknown = symbols.filter(
-        (s) => !availableCols.includes(s) && isNaN(Number(s))
+        (s) => !availableCols.includes(s) && isNaN(Number(s)),
       );
-      if (unknown.length > 0)
+      if (unknown.length > 0) {
+        const unknownList = [...new Set(unknown)];
         return {
           valid: false,
-          error: `Unknown column keys: ${[...new Set(unknown)].join(", ")}`,
+          error: `Unknown column(s): ${unknownList.join(", ")}. Available columns: ${availableCols.slice(0, 5).join(", ")}${availableCols.length > 5 ? "..." : ""}`,
         };
+      }
       // also try compile to catch other errors
       node.compile();
     } catch (err) {
-      return { valid: false, error: `Formula error: ${err.message}` };
+      return {
+        valid: false,
+        error: `Formula syntax error: ${err.message}. Example: quantity*rate or amount*0.09`,
+      };
     }
 
     return { valid: true };
@@ -297,11 +315,11 @@ export default function ItemsTable({
       // If editing existing column
       if (!isNew) {
         const updatedCols = prevCols.map((c) =>
-          c.key === pendingCol.col.key ? { ...c, ...newCol } : c
+          c.key === pendingCol.col.key ? { ...c, ...newCol } : c,
         );
         // If formula changed, recalc all rows
         const newItems = (prev.items || []).map((it) =>
-          calculateRowFormulas(it)
+          calculateRowFormulas(it),
         );
         return { ...prev, columns: updatedCols, items: newItems };
       }
@@ -315,13 +333,13 @@ export default function ItemsTable({
         // determine sensible default for the new column value
         const defaultValue =
           newCol.key === "quantity" ||
-            (newCol.type === "number" &&
-              (String(newCol.label || "")
+          (newCol.type === "number" &&
+            (String(newCol.label || "")
+              .toLowerCase()
+              .includes("qty") ||
+              String(newCol.label || "")
                 .toLowerCase()
-                .includes("qty") ||
-                String(newCol.label || "")
-                  .toLowerCase()
-                  .includes("quantity")))
+                .includes("quantity")))
             ? "1"
             : "";
         for (let i = startIdx; i < endIdx && i < items.length; i++) {
@@ -336,13 +354,13 @@ export default function ItemsTable({
         // add to every existing row
         const defaultValue =
           newCol.key === "quantity" ||
-            (newCol.type === "number" &&
-              (String(newCol.label || "")
+          (newCol.type === "number" &&
+            (String(newCol.label || "")
+              .toLowerCase()
+              .includes("qty") ||
+              String(newCol.label || "")
                 .toLowerCase()
-                .includes("qty") ||
-                String(newCol.label || "")
-                  .toLowerCase()
-                  .includes("quantity")))
+                .includes("quantity")))
             ? "1"
             : "";
         for (let i = 0; i < items.length; i++) {
@@ -354,7 +372,7 @@ export default function ItemsTable({
       } else if (newColScope === "specific") {
         const p = Math.min(
           Math.max(1, newColSpecificPage || currentPage),
-          Math.max(1, Math.ceil(items.length / rowsPerPage) || 1)
+          Math.max(1, Math.ceil(items.length / rowsPerPage) || 1),
         );
         const s = (p - 1) * rowsPerPage;
         addKeyRange(s, s + rowsPerPage);
@@ -385,10 +403,10 @@ export default function ItemsTable({
       String(over.id).startsWith("row-")
     ) {
       const oldIndex = items.findIndex(
-        (row, idx) => `row-${row.id || idx}` === active.id
+        (row, idx) => `row-${row.id || idx}` === active.id,
       );
       const newIndex = items.findIndex(
-        (row, idx) => `row-${row.id || idx}` === over.id
+        (row, idx) => `row-${row.id || idx}` === over.id,
       );
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = arrayMove(items, oldIndex, newIndex);
@@ -401,10 +419,10 @@ export default function ItemsTable({
       String(over.id).startsWith("col-")
     ) {
       const oldIndex = columns.findIndex(
-        (col, idx) => `col-${col.key}` === active.id
+        (col, idx) => `col-${col.key}` === active.id,
       );
       const newIndex = columns.findIndex(
-        (col, idx) => `col-${col.key}` === over.id
+        (col, idx) => `col-${col.key}` === over.id,
       );
       if (oldIndex !== -1 && newIndex !== -1) {
         const reordered = arrayMove(columns, oldIndex, newIndex);
@@ -653,7 +671,7 @@ export default function ItemsTable({
           // eslint-disable-next-line no-console
           console.warn(
             `Formula evaluation failed for column ${col.key}:`,
-            err.message || err
+            err.message || err,
           );
         }
       }
@@ -680,7 +698,7 @@ export default function ItemsTable({
       const nextItems = prev.items.map((it) => calculateRowFormulas(it));
       // Only update if different (shallow compare)
       const changed = nextItems.some(
-        (n, i) => JSON.stringify(n) !== JSON.stringify(prev.items[i])
+        (n, i) => JSON.stringify(n) !== JSON.stringify(prev.items[i]),
       );
       return changed ? { ...prev, items: nextItems } : prev;
     });
@@ -696,7 +714,7 @@ export default function ItemsTable({
       // clamp current page if needed
       const newTotal = Math.max(
         1,
-        Math.ceil((items || []).length / rowsPerPage) + next
+        Math.ceil((items || []).length / rowsPerPage) + next,
       );
       setCurrentPage((p) => Math.min(p, newTotal));
       return next;
@@ -744,7 +762,7 @@ export default function ItemsTable({
         const start = (targetPage - 1) * rowsPerPage;
         const existingOnPage = Math.max(
           0,
-          Math.min(rowsPerPage, items.slice(start, start + rowsPerPage).length)
+          Math.min(rowsPerPage, items.slice(start, start + rowsPerPage).length),
         );
         insertIndex = start + existingOnPage;
       }
@@ -807,8 +825,9 @@ export default function ItemsTable({
         style={style}
         {...attributes}
         {...listeners}
-        className={`border-b border-gray-200 group transition-all duration-200 hover:bg-gradient-to-r hover:from-[#019b98]/03 hover:to-[#019b98]/02 ${isDragging ? "dragging-row dragging" : ""
-          } ${rowIdx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}
+        className={`border-b border-gray-200 group transition-all duration-200 hover:bg-gradient-to-r hover:from-[#019b98]/03 hover:to-[#019b98]/02 ${
+          isDragging ? "dragging-row dragging" : ""
+        } ${rowIdx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}
       >
         {children}
       </tr>
@@ -845,8 +864,9 @@ export default function ItemsTable({
         style={style}
         {...attributes}
         {...listeners}
-        className={`px-3 py-3 text-left font-bold border-b-2 border-gray-200 group ${isDragging ? "dragging-column dragging" : ""
-          }`}
+        className={`px-3 py-3 text-left font-bold border-b-2 border-gray-200 group ${
+          isDragging ? "dragging-column dragging" : ""
+        }`}
       >
         <div className="flex items-center gap-1">
           <svg
@@ -868,8 +888,9 @@ export default function ItemsTable({
           {children}
           <span
             className="ml-1 text-xs px-1 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500"
-            title={`Type: ${col.type}${col.type === "formula" && col.formula ? ` (${col.formula})` : ""
-              }`}
+            title={`Type: ${col.type}${
+              col.type === "formula" && col.formula ? ` (${col.formula})` : ""
+            }`}
           >
             {col.type === "formula" ? "ƒ" : col.type?.[0]?.toUpperCase()}
           </span>
@@ -929,8 +950,10 @@ export default function ItemsTable({
     const [localValues, setLocalValues] = useState(
       isArray
         ? displayValue.map((v) => String(v ?? ""))
-        : [String(displayValue ?? "")]
+        : [String(displayValue ?? "")],
     );
+    // Track validation errors
+    const [validationErrors, setValidationErrors] = useState({});
     // Prevent setState on parent during initial mount
     const isFirstRender = React.useRef(true);
     useEffect(() => {
@@ -951,12 +974,23 @@ export default function ItemsTable({
       }
     }, [displayValue, isArray]);
 
+    // Validate number input
+    const validateNumberInput = (value) => {
+      if (!value || value.trim() === "") return null; // Empty is valid (means 0)
+      if (!/^-?\d+\.?\d*$/.test(value.trim())) {
+        return "Invalid number format";
+      }
+      const num = parseFloat(value);
+      if (isNaN(num)) return "Not a valid number";
+      return null;
+    };
+
     // Modern input highlight state
     const [focusedIdx, setFocusedIdx] = useState(-1);
     // Use React refs for robust navigation
     const inputRefs = useMemo(
       () => localValues.map(() => React.createRef()),
-      [localValues.length]
+      [localValues.length],
     );
 
     useEffect(() => {
@@ -967,7 +1001,7 @@ export default function ItemsTable({
           const maxHeight = 320;
           ref.current.style.height = `${Math.min(
             ref.current.scrollHeight,
-            maxHeight
+            maxHeight,
           )}px`;
         }
       });
@@ -975,6 +1009,18 @@ export default function ItemsTable({
 
     const commit = (idx = null) => {
       if (readOnly) return;
+
+      // Validate before committing
+      if (inputType === "number") {
+        const error = validateNumberInput(localValues[idx]);
+        if (error) {
+          setValidationErrors((prev) => ({ ...prev, [idx]: error }));
+          return;
+        }
+      }
+
+      setValidationErrors({});
+
       let valuesToSave = localValues;
       if (inputType === "number") {
         valuesToSave = localValues.map((v) => {
@@ -993,6 +1039,12 @@ export default function ItemsTable({
         const arr = [...prev];
         arr[idx] = newValue;
         return arr;
+      });
+      // Clear error on change
+      setValidationErrors((prev) => {
+        const next = { ...prev };
+        delete next[idx];
+        return next;
       });
     };
 
@@ -1014,6 +1066,7 @@ export default function ItemsTable({
           // avoid breaking UI if update fails
           // eslint-disable-next-line no-console
           console.warn("Failed to persist added value:", e.message || e);
+          toast.error(`Failed to add value: ${e.message || "Unknown error"}`);
         }
         return arr;
       });
@@ -1101,7 +1154,7 @@ export default function ItemsTable({
             while (nextTd) {
               // Find first editable element: input, textarea, or [contenteditable]
               const editable = nextTd.querySelector(
-                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']"
+                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']",
               );
               if (editable) return editable;
               nextTd = forward
@@ -1116,7 +1169,7 @@ export default function ItemsTable({
             const nextTr = tr?.nextElementSibling;
             if (nextTr) {
               return nextTr.querySelector(
-                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']"
+                "input:not([readonly]), textarea:not([readonly]), [contenteditable='true']",
               );
             }
             return null;
@@ -1157,7 +1210,7 @@ export default function ItemsTable({
             const currentEl = inputRefs[idx].current;
             const targetEditable = findNextEditable(
               currentEl,
-              !e.shiftKey ? true : false
+              !e.shiftKey ? true : false,
             );
             if (targetEditable) {
               targetEditable.focus();
@@ -1177,16 +1230,24 @@ export default function ItemsTable({
             setLocalValues(
               isArray
                 ? displayValue.map((v) => String(v ?? ""))
-                : [String(displayValue ?? "")]
+                : [String(displayValue ?? "")],
             );
             setFocusedIdx(-1);
           }
         },
-        className: `w-full border border-gray-200 rounded px-2 py-1 text-xs transition-all duration-150 outline-none focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white focus:shadow-[0_0_0_2px_#38bdf8] ${focusedIdx === idx
-            ? "ring-2 ring-blue-400 bg-blue-50 shadow-[0_0_0_2px_#38bdf8]"
+        className: `w-full border rounded px-2 py-1 text-xs transition-all duration-150 outline-none focus:outline-none focus:ring-2 focus:bg-white focus:shadow-[0_0_0_2px_#38bdf8] ${
+          validationErrors[idx]
+            ? "border-red-400 bg-red-50 focus:ring-red-400"
+            : "border-gray-200 focus:ring-blue-400"
+        } ${
+          focusedIdx === idx
+            ? validationErrors[idx]
+              ? "ring-2 ring-red-400 bg-red-50 shadow-[0_0_0_2px_#fca5a5]"
+              : "ring-2 ring-blue-400 bg-blue-50 shadow-[0_0_0_2px_#38bdf8]"
             : ""
-          } ${readOnly ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""} ${isLongTextField ? "leading-snug" : ""
-          }`,
+        } ${readOnly ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""} ${
+          isLongTextField ? "leading-snug" : ""
+        }`,
         placeholder: col.label,
         readOnly: readOnly,
         tabIndex: readOnly ? -1 : 0,
@@ -1208,47 +1269,56 @@ export default function ItemsTable({
       return (
         <div className="flex flex-col gap-1 w-full min-w-0">
           {localValues.map((val, idx) => (
-            <div key={idx} className="flex items-start gap-1 w-full min-w-0">
-              {(() => {
-                const inputProps = getInputProps(idx);
-                const { style: baseStyle, ...rest } = inputProps;
-                const rowCount = isLongTextField
-                  ? Math.min(12, Math.max(3, val.split(/\r?\n/).length))
-                  : undefined;
-                const InputComponent = isLongTextField ? "textarea" : "input";
-                return (
-                  <InputComponent
-                    {...rest}
-                    style={{
-                      ...baseStyle,
-                      width: "100%",
-                      minWidth: 0,
-                    }}
-                    rows={isLongTextField ? rowCount : undefined}
-                  />
-                );
-              })()}
-              {localValues.length > 1 && (
-                <button
-                  type="button"
-                  aria-label="Remove value"
-                  onClick={() => handleRemoveValue(idx)}
-                  className="text-red-500 hover:text-red-700 px-1 py-0.5 rounded focus:outline-none"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+            <div key={idx} className="flex flex-col gap-0.5 w-full min-w-0">
+              <div className="flex items-start gap-1 w-full min-w-0">
+                {(() => {
+                  const inputProps = getInputProps(idx);
+                  const { style: baseStyle, ...rest } = inputProps;
+                  const rowCount = isLongTextField
+                    ? Math.min(12, Math.max(3, val.split(/\r?\n/).length))
+                    : undefined;
+                  const InputComponent = isLongTextField ? "textarea" : "input";
+                  return (
+                    <InputComponent
+                      {...rest}
+                      style={{
+                        ...baseStyle,
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                      rows={isLongTextField ? rowCount : undefined}
+                    />
+                  );
+                })()}
+                {localValues.length > 1 && (
+                  <button
+                    type="button"
+                    aria-label="Remove value"
+                    onClick={() => handleRemoveValue(idx)}
+                    className="text-red-500 hover:text-red-700 px-1 py-0.5 rounded focus:outline-none transition-colors"
+                    title="Remove this value"
                   >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {validationErrors[idx] && (
+                <div className="text-xs text-red-600 font-medium px-1 flex items-center gap-1">
+                  <span>⚠️</span>
+                  <span>{validationErrors[idx]}</span>
+                </div>
               )}
             </div>
           ))}
@@ -1257,9 +1327,10 @@ export default function ItemsTable({
             aria-label="Add value"
             onClick={handleAddValue}
             className={`text-green-600 hover:text-green-800 px-1 py-0.5 rounded focus:outline-none flex items-center gap-1 mt-1 transition-all duration-150
-              ${highlightAdd
-                ? "bg-yellow-100 border border-yellow-400 shadow-sm hover:bg-yellow-200"
-                : ""
+              ${
+                highlightAdd
+                  ? "bg-yellow-100 border border-yellow-400 shadow-sm hover:bg-yellow-200"
+                  : ""
               }
             `}
             title={
@@ -1302,9 +1373,9 @@ export default function ItemsTable({
     const InputComponent = isLongTextField ? "textarea" : "input";
     const rowCount = isLongTextField
       ? Math.min(
-        12,
-        Math.max(3, String(displayValue ?? "").split(/\r?\n/).length)
-      )
+          12,
+          Math.max(3, String(displayValue ?? "").split(/\r?\n/).length),
+        )
       : undefined;
     return (
       <InputComponent
@@ -1319,12 +1390,581 @@ export default function ItemsTable({
     );
   }
 
+  // Complete invoice view - matches generated invoice layout
+  function InvoiceView() {
+    const sumCell = (cell) => {
+      if (Array.isArray(cell))
+        return cell.reduce((s, v) => s + (parseFloat(v) || 0), 0);
+      return parseFloat(cell) || 0;
+    };
+
+    const calculateSubtotal = () => {
+      if (!items.length) return 0;
+      return items.reduce((sum, row) => sum + sumCell(row.amount), 0);
+    };
+
+    const calculateTotalCGST = () => {
+      if (!items.length) return 0;
+      return items.reduce((sum, row) => sum + sumCell(row.cgstAmount), 0);
+    };
+
+    const calculateTotalSGST = () => {
+      if (!items.length) return 0;
+      return items.reduce((sum, row) => sum + sumCell(row.sgstAmount), 0);
+    };
+
+    const calculateTotal = () =>
+      calculateSubtotal() + calculateTotalCGST() + calculateTotalSGST();
+
+    return (
+      <div className="w-full mx-auto py-6 px-2 relative">
+        {/* Invoice Container */}
+        <div
+          style={{
+            width: "100%",
+            minHeight: "297mm",
+            margin: "0 auto 24px",
+            backgroundColor: "#ffffff",
+            boxShadow:
+              "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+            borderRadius: "4px",
+            border: "1px solid #e5e7eb",
+            padding: "6mm",
+            boxSizing: "border-box",
+            position: "relative",
+            color: "#000",
+          }}
+        >
+          {/* Header with Logo and Company Info */}
+          <div
+            style={{
+              border: "2px solid #000",
+              padding: "6px",
+              marginBottom: "6px",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <div style={{ textAlign: "center", padding: "4px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                  marginBottom: 8,
+                }}
+              >
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 8,
+                  }}
+                >
+                  <img
+                    src="./logo.png"
+                    alt="Pujari Engineers Logo"
+                    width={56}
+                    height={56}
+                    style={{ borderRadius: 12 }}
+                    className="object-contain"
+                  />
+                </div>
+                <div>
+                  <h1
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 700,
+                      margin: 0,
+                      color: "#000",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    PUJARI ENGINEERS INDIA (P) LTD.
+                  </h1>
+                  <p
+                    style={{
+                      margin: "4px 0 0 0",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: "#333",
+                    }}
+                  >
+                    ONLINE LEAK SEALING • INSULATION HOT TIGHTING • METAL
+                    STITCHING
+                  </p>
+                  <p
+                    style={{
+                      margin: "2px 0 0 0",
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: "#333",
+                    }}
+                  >
+                    SPARE PARTS SUPPLIERS & LABOUR SUPPLIERS
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ fontSize: 10, marginTop: 6 }}>
+                <p style={{ margin: "2px 0", lineHeight: 1.4 }}>
+                  <strong style={{ color: "#000" }}>Address:</strong>{" "}
+                  <span style={{ color: "#333" }}>
+                    {billData.companyAddress ||
+                      "B-21, Flat No.101, Siddeshwar Co-op Hsg. Soc; Sector-9, Gharonda, Ghansoli, Navi, Mumbai -400 701."}
+                  </span>
+                </p>
+                <p style={{ margin: "2px 0", lineHeight: 1.4 }}>
+                  <strong style={{ color: "#000" }}>Mobile:</strong>{" "}
+                  <span style={{ color: "#333" }}>
+                    {billData.companyPhone || "9820027556"}
+                  </span>{" "}
+                  &nbsp; <strong style={{ color: "#000" }}>Email:</strong>{" "}
+                  <span style={{ color: "#333" }}>
+                    {billData.companyEmail || "spujari79@gmail.com"}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer & Bill Details Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            {/* Customer Info */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: 6,
+                backgroundColor: "#ffffff",
+                fontSize: 10,
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontWeight: 700,
+                  fontSize: 11,
+                  color: "#000",
+                }}
+              >
+                To, {billData.customerName || "Customer Name"}
+              </p>
+              {billData.plantName && (
+                <p style={{ margin: "4px 0 0 0" }}>{billData.plantName}</p>
+              )}
+              <p style={{ margin: "4px 0 0 0" }}>
+                {billData.customerAddress || "Customer Address"}
+              </p>
+              <p style={{ margin: "4px 0 0 0" }}>
+                Phone: {billData.customerPhone || "N/A"}
+              </p>
+              <p style={{ margin: "4px 0 0 0" }}>
+                GST: {billData.customerGST || "N/A"}
+              </p>
+            </div>
+
+            {/* Bill Meta Details */}
+            <div
+              style={{
+                border: "2px solid #000",
+                padding: 6,
+                fontSize: 10,
+                backgroundColor: "#ffffff",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <strong>Invoice No:</strong>
+                <span>{billData.billNumber || "N/A"}</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <strong>Date:</strong>
+                <span>
+                  {billData.date
+                    ? new Date(billData.date).toLocaleDateString()
+                    : "N/A"}
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <strong>ORDER NO.:</strong>
+                <span>{billData.orderNo || "N/A"}</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <strong>JOBSHEET NO:</strong>
+                <span>{billData.jobsheetNo || "ATTACHED"}</span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 2,
+                }}
+              >
+                <strong>Outline Agreement:</strong>
+                <span>{billData.outlineAgreement || "N/A"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <strong>GSTIN:</strong>
+                <span>{billData.companyGST || "27AADCP2938G1ZD"}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <div style={{ overflowX: "auto", marginBottom: 6 }}>
+            <h3
+              style={{
+                fontWeight: 700,
+                fontSize: 12,
+                background: "#f8f9fa",
+                padding: "4px 6px",
+                margin: 0,
+                border: "2px solid #000",
+                borderBottom: "none",
+                color: "#000",
+              }}
+            >
+              Item Details
+            </h3>
+            {items.length === 0 ? (
+              <div
+                style={{
+                  border: "2px solid #000",
+                  padding: "40px",
+                  textAlign: "center",
+                  color: "#9ca3af",
+                  fontSize: 12,
+                }}
+              >
+                No items to display
+              </div>
+            ) : (
+              <table
+                style={{
+                  borderRadius: "0px",
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 10,
+                  border: "2px solid #000",
+                  tableLayout: "auto",
+                }}
+              >
+                <thead>
+                  <tr
+                    style={{
+                      backgroundColor: "#d4d4d8",
+                      borderBottom: "2px solid #000",
+                    }}
+                  >
+                    {columns.map((col) => (
+                      <th
+                        key={col.key}
+                        style={{
+                          backgroundColor: "#d4d4d8",
+                          borderBottom: "2px solid #000",
+                          borderRight: "1px solid #666",
+                          padding: "8px 6px",
+                          textAlign: col.type === "number" ? "right" : "left",
+                          fontWeight: 700,
+                          color: "#000",
+                          fontSize: "10px",
+                          width:
+                            col.key === "cgstAmount" || col.key === "sgstAmount"
+                              ? "70px"
+                              : col.key === "refNo"
+                                ? "60px"
+                                : col.key === "description"
+                                  ? "250px"
+                                  : undefined,
+                          minWidth:
+                            col.key === "cgstAmount" || col.key === "sgstAmount"
+                              ? "70px"
+                              : col.key === "refNo"
+                                ? "60px"
+                                : col.key === "description"
+                                  ? "250px"
+                                  : undefined,
+                        }}
+                      >
+                        {col.label}
+                      </th>
+                    ))}
+                    <th
+                      style={{
+                        backgroundColor: "#d4d4d8",
+                        borderBottom: "2px solid #000",
+                        padding: "8px 6px",
+                        textAlign: "center",
+                        fontWeight: 700,
+                        color: "#000",
+                        fontSize: "10px",
+                        width: "70px",
+                      }}
+                    >
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((row, idx) => (
+                    <tr
+                      key={row.id || idx}
+                      style={{
+                        borderBottom: "1px solid #e5e7eb",
+                        backgroundColor: idx % 2 === 0 ? "#ffffff" : "#f9fafb",
+                      }}
+                    >
+                      {columns.map((col) => (
+                        <td
+                          key={col.key}
+                          style={{
+                            borderRight: "1px solid #e5e7eb",
+                            padding: "6px 4px",
+                            textAlign: col.type === "number" ? "right" : "left",
+                            fontSize: "9px",
+                            color: "#1f2937",
+                            width:
+                              col.key === "cgstAmount" ||
+                              col.key === "sgstAmount"
+                                ? "70px"
+                                : col.key === "refNo"
+                                  ? "60px"
+                                  : col.key === "description"
+                                    ? "250px"
+                                    : undefined,
+                            minWidth:
+                              col.key === "cgstAmount" ||
+                              col.key === "sgstAmount"
+                                ? "70px"
+                                : col.key === "refNo"
+                                  ? "60px"
+                                  : col.key === "description"
+                                    ? "250px"
+                                    : undefined,
+                          }}
+                        >
+                          <EditableCell
+                            row={row}
+                            rowIdx={idx}
+                            col={col}
+                            inputType={
+                              col.type === "formula" ? "number" : col.type
+                            }
+                            readOnly={col.type === "formula"}
+                            displayValue={row[col.key] || ""}
+                          />
+                        </td>
+                      ))}
+                      <td
+                        style={{
+                          padding: "6px 4px",
+                          textAlign: "center",
+                          fontSize: "9px",
+                        }}
+                      >
+                        <button
+                          onClick={() => {
+                            setBillData((prev) => ({
+                              ...prev,
+                              items: prev.items.filter((r) => r.id !== row.id),
+                            }));
+                            toast.success("Row deleted!", { duration: 1500 });
+                          }}
+                          className="px-1.5 py-0.5 text-xs bg-red-100 text-red-700 hover:bg-red-200 rounded font-medium transition-all duration-150"
+                          title="Delete row"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Totals Section - Bottom Right */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "flex-end",
+              marginTop: 12,
+            }}
+          >
+            <div style={{ width: "320px" }}>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  fontSize: 10,
+                  border: "2px solid #000",
+                }}
+              >
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        fontWeight: 600,
+                        textAlign: "right",
+                        backgroundColor: "#f9fafb",
+                      }}
+                    >
+                      Subtotal:
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        textAlign: "right",
+                        backgroundColor: "#f9fafb",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      ₹{calculateSubtotal().toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        fontWeight: 600,
+                        textAlign: "right",
+                        backgroundColor: "#ffffff",
+                      }}
+                    >
+                      CGST (9%):
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        textAlign: "right",
+                        backgroundColor: "#ffffff",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      ₹{calculateTotalCGST().toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        fontWeight: 600,
+                        textAlign: "right",
+                        backgroundColor: "#f9fafb",
+                      }}
+                    >
+                      SGST (9%):
+                    </td>
+                    <td
+                      style={{
+                        padding: "8px 10px",
+                        textAlign: "right",
+                        backgroundColor: "#f9fafb",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      ₹{calculateTotalSGST().toFixed(2)}
+                    </td>
+                  </tr>
+                  <tr
+                    style={{
+                      borderBottom: "2px solid #000",
+                      backgroundColor: "#f0f0f0",
+                    }}
+                  >
+                    <td
+                      style={{
+                        padding: "10px 10px",
+                        fontWeight: 700,
+                        textAlign: "right",
+                        fontSize: 11,
+                      }}
+                    >
+                      GRAND TOTAL:
+                    </td>
+                    <td
+                      style={{
+                        padding: "10px 10px",
+                        textAlign: "right",
+                        fontWeight: 700,
+                        fontSize: 11,
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      ₹{calculateTotal().toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Footer Notes */}
+          <div
+            style={{
+              marginTop: 16,
+              fontSize: 9,
+              color: "#666",
+              borderTop: "1px solid #e5e7eb",
+              paddingTop: 8,
+            }}
+          >
+            <p style={{ margin: "4px 0" }}>
+              <strong>Terms & Conditions:</strong> Payment terms as per
+              agreement. GST applicable as per norms.
+            </p>
+            <p style={{ margin: "4px 0" }}>
+              <strong>Note:</strong> This is a computer-generated invoice. No
+              signature is required.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className={`${isFullscreen
+      className={`${
+        isFullscreen
           ? "fixed inset-0 z-50 bg-white p-4 overflow-auto animate-fade-in"
           : "p-4 w-full"
-        } transition-all duration-300`}
+      } transition-all duration-300`}
     >
       {/* Print-safe table: never overflow horizontally in print */}
       <style jsx global>{`
@@ -1412,7 +2052,9 @@ export default function ItemsTable({
           font-size: 16px;
           padding: 6px 8px;
           border-radius: 6px;
-          transition: background 0.15s ease, transform 0.12s ease;
+          transition:
+            background 0.15s ease,
+            transform 0.12s ease;
         }
         .drag-handle:hover {
           background: rgba(99, 102, 241, 0.06);
@@ -1427,7 +2069,9 @@ export default function ItemsTable({
           border: none;
           font-weight: 600;
           box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
-          transition: transform 0.12s ease, box-shadow 0.12s ease,
+          transition:
+            transform 0.12s ease,
+            box-shadow 0.12s ease,
             background 0.12s ease;
         }
         .btn-modern:active {
@@ -1496,7 +2140,7 @@ export default function ItemsTable({
                   document.body.removeChild(ta);
                 }
                 toast.success(
-                  "All values copied to clipboard (separate entries)"
+                  "All values copied to clipboard (separate entries)",
                 );
               } catch (err) {
                 console.error("Copy failed", err);
@@ -1535,7 +2179,7 @@ export default function ItemsTable({
               setNewColLabel(`Column ${columns.length + 1}`);
               setNewColScope("current");
               setNewColSpecificPage(
-                Math.min(Math.max(1, currentPage), totalPages)
+                Math.min(Math.max(1, currentPage), totalPages),
               );
               setShowColTypeModal(true);
             }}
@@ -1652,14 +2296,13 @@ export default function ItemsTable({
             <span>Bill Formats</span>
           </button>
 
-
-
           <button
             onClick={toggleFullscreen}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 font-semibold shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${isFullscreen
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 font-semibold shadow-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+              isFullscreen
                 ? "border-red-500 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white focus:ring-red-500 animate-pulse-glow"
                 : "border-[#8b5cf6] bg-[#f3f4f6] text-[#8b5cf6] hover:bg-[#8b5cf6] hover:text-white focus:ring-[#8b5cf6]"
-              }`}
+            }`}
             title={isFullscreen ? "Exit Fullscreen (ESC)" : "Enter Fullscreen"}
           >
             <svg
@@ -1681,10 +2324,15 @@ export default function ItemsTable({
             <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
           </button>
 
-          <div className="relative group">
+          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden shadow-sm">
             <button
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border-2 border-[#6366f1] bg-[#eef2ff] text-[#6366f1] font-semibold shadow-md hover:shadow-lg hover:bg-[#6366f1] hover:text-white transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-[#6366f1] focus:ring-offset-2"
-              title="View keyboard shortcuts and tips"
+              onClick={() => setViewMode("invoice")}
+              className={`px-4 py-2 font-medium transition-all duration-200 ${
+                viewMode === "invoice"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title="Invoice view (default)"
             >
               <svg
                 width="18"
@@ -1695,387 +2343,265 @@ export default function ItemsTable({
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                className="inline mr-2"
               >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4M12 8h.01" />
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14,2 14,8 20,8" />
+                <line x1="12" y1="11" x2="8" y2="11" />
+                <line x1="12" y1="15" x2="8" y2="15" />
+                <line x1="12" y1="19" x2="8" y2="19" />
               </svg>
-              <span>Help</span>
+              Invoice
             </button>
-
-            {/* Keyboard Shortcuts Tooltip */}
-            <div className="absolute bottom-full right-0 mb-2 w-80 bg-white border border-gray-300 rounded-lg shadow-2xl z-50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 pointer-events-none group-hover:pointer-events-auto">
-              <div className="p-4 bg-gradient-to-r from-[#6366f1] to-[#4f46e5] text-white rounded-t-lg">
-                <h4 className="font-bold text-sm m-0 flex items-center gap-2">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-                    <polyline points="13 2 13 9 20 9" />
-                  </svg>
-                  Keyboard Shortcuts
-                </h4>
-              </div>
-              <div className="p-4 space-y-3 text-sm">
-                <div>
-                  <div className="font-semibold text-gray-700 mb-2">
-                    Editing:
-                  </div>
-                  <div className="space-y-1 text-gray-600">
-                    <div className="flex justify-between items-start">
-                      <span>Double-click cell</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Edit
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Tab</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Next cell
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Shift+Tab</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Prev cell
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Enter</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Confirm edit
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Esc</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Cancel edit
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <div className="font-semibold text-gray-700 mb-2">
-                    Features:
-                  </div>
-                  <div className="space-y-1 text-gray-600">
-                    <div className="flex justify-between items-start">
-                      <span>Drag rows</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Reorder
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Click formula cell</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Math expressions
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-start">
-                      <span>Esc (Fullscreen)</span>
-                      <span className="text-xs bg-gray-100 px-2 py-1 rounded font-mono">
-                        Exit fullscreen
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <div className="font-semibold text-gray-700 mb-2">Tips:</div>
-                  <ul className="text-gray-600 space-y-1 list-disc list-inside">
-                    <li>
-                      Use formulas like{" "}
-                      <span className="font-mono bg-gray-100 px-1">
-                        quantity*rate
-                      </span>
-                    </li>
-                    <li>Columns auto-calculate based on formulas</li>
-                    <li>Save formats as presets for reuse</li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white shadow-xl border border-[#019b98]/30 rounded-xl overflow-hidden mt-4 w-full">
-        <div className="overflow-x-auto w-full">
-          <div className="bg-gradient-to-r from-[#019b98]/10 to-[#0a7a78]/10 border-b border-[#019b98]/20 px-4 py-3">
-            <h3 className="text-lg font-bold mb-0 flex items-center gap-2">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`px-4 py-2 font-medium transition-all duration-200 border-l ${
+                viewMode === "table"
+                  ? "bg-blue-600 text-white"
+                  : "bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+              title="Table view (legacy mode)"
+            >
               <svg
-                width="20"
-                height="20"
+                width="18"
+                height="18"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2.2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
-                className="text-[#019b98]"
+                className="inline mr-2"
               >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14,2 14,8 20,8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-                <polyline points="10,9 9,9 8,9" />
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M9 3v18" />
               </svg>
-              <input
-                type="text"
-                value={tableTitle}
-                onChange={(e) =>
-                  setBillData((prev) => ({
-                    ...prev,
-                    tableTitle: e.target.value,
-                  }))
-                }
-                className="font-bold text-lg border-none bg-transparent w-full rounded px-2 py-1 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
-                placeholder="Table Title"
-              />
-            </h3>
+              Table
+            </button>
           </div>
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext
-              items={columns.map((col) => `col-${col.key}`)}
-              strategy={horizontalListSortingStrategy}
+        </div>
+      </div>
+
+      {/* Conditional rendering based on view mode */}
+      {viewMode === "invoice" ? (
+        <div className="bg-white shadow-xl border border-[#019b98]/30 rounded-xl overflow-hidden mt-4 w-full p-4">
+          <InvoiceView />
+        </div>
+      ) : (
+        <div className="bg-white shadow-xl border border-[#019b98]/30 rounded-xl overflow-hidden mt-4 w-full">
+          <div className="overflow-x-auto w-full">
+            <div className="bg-gradient-to-r from-[#019b98]/10 to-[#0a7a78]/10 border-b border-[#019b98]/20 px-4 py-3">
+              <h3 className="text-lg font-bold mb-0 flex items-center gap-2">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="text-[#019b98]"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14,2 14,8 20,8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10,9 9,9 8,9" />
+                </svg>
+                {tableTitle}
+                <input
+                  type="text"
+                  value={tableTitle}
+                  onChange={(e) =>
+                    setBillData((prev) => ({
+                      ...prev,
+                      tableTitle: e.target.value,
+                    }))
+                  }
+                  className="font-bold text-lg border-none bg-transparent w-full rounded px-2 py-1 focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
+                  placeholder="Table Title"
+                />
+              </h3>
+            </div>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
             >
               <SortableContext
-                items={items.map((row, idx) => `row-${row.id || idx}`)}
-                strategy={verticalListSortingStrategy}
+                items={columns.map((col) => `col-${col.key}`)}
+                strategy={horizontalListSortingStrategy}
               >
-                <table
-                  className="w-full text-xs print-safe-table border-separate border-spacing-0 rounded-lg overflow-hidden"
-                  style={{
-                    color: "#000",
-                    tableLayout: "auto",
-                    width: "100%",
-                    minWidth: "100%",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
-                  }}
+                <SortableContext
+                  items={items.map((row, idx) => `row-${row.id || idx}`)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <colgroup>
-                    {[
-                      <col key="drag-col" style={{ width: "35px" }} />,
-                      ...columns.map((col) => (
-                        <col
-                          key={col.key}
-                          style={{
-                            width: isLongTextColumn(col) ? "18%" : "12%",
-                          }}
-                        />
-                      )),
-                      <col key="action-col" style={{ width: "70px" }} />,
-                    ]}
-                  </colgroup>
-
-                  <thead className="bg-gradient-to-r from-[#019b98] to-[#0a7a78]">
-                    <tr>
-                      <th
-                        className="px-2 py-3 text-left font-bold border-b-2 border-white/20 text-white"
-                        style={{
-                          color: "#fff",
-                          width: 40,
-                          textTransform: "uppercase",
-                          fontSize: "12px",
-                          letterSpacing: "0.5px",
-                        }}
-                      ></th>
-                      {columns.map((col, idx) => (
-                        <SortableColumn key={col.key} col={col} idx={idx}>
-                          <input
-                            type="text"
-                            value={col.label}
-                            onChange={(e) => {
-                              const newCols = [...columns];
-                              newCols[idx] = { ...col, label: e.target.value };
-                              setBillData((prev) => ({
-                                ...prev,
-                                columns: newCols,
-                              }));
+                  <table
+                    className="w-full text-xs print-safe-table border-separate border-spacing-0 overflow-hidden"
+                    style={{
+                      color: "#000",
+                      tableLayout: "auto",
+                      width: "100%",
+                      minWidth: "100%",
+                      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.08)",
+                      borderRadius: "0px",
+                    }}
+                  >
+                    <colgroup>
+                      {[
+                        <col key="drag-col" style={{ width: "35px" }} />,
+                        ...columns.map((col) => (
+                          <col
+                            key={col.key}
+                            style={{
+                              width: isLongTextColumn(col) ? "18%" : "12%",
                             }}
-                            className="font-bold text-xs border-none bg-transparent flex-1 min-w-[80px] px-1 py-0.5 rounded focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
-                            placeholder="Column Title"
-                            style={{ color: "#000" }}
                           />
-                          {columns.length > 1 && (
-                            <button
-                              onClick={() => {
-                                const colKey = col.key;
+                        )),
+                        <col key="action-col" style={{ width: "70px" }} />,
+                      ]}
+                    </colgroup>
+
+                    <thead className="bg-gradient-to-r from-[#019b98] to-[#0a7a78]">
+                      <tr>
+                        <th
+                          className="px-2 py-3 text-left font-bold border-b-2 border-white/20 text-white"
+                          style={{
+                            color: "#fff",
+                            width: 40,
+                            textTransform: "uppercase",
+                            fontSize: "12px",
+                            letterSpacing: "0.5px",
+                          }}
+                        ></th>
+                        {columns.map((col, idx) => (
+                          <SortableColumn key={col.key} col={col} idx={idx}>
+                            <input
+                              type="text"
+                              value={col.label}
+                              onChange={(e) => {
+                                const newCols = [...columns];
+                                newCols[idx] = {
+                                  ...col,
+                                  label: e.target.value,
+                                };
                                 setBillData((prev) => ({
                                   ...prev,
-                                  columns: columns.filter(
-                                    (_, cidx) => cidx !== idx
-                                  ),
-                                  items: items.map((row) => {
-                                    const newRow = { ...row };
-                                    delete newRow[colKey];
-                                    return newRow;
-                                  }),
+                                  columns: newCols,
                                 }));
                               }}
-                              className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 cursor-pointer text-sm ml-2"
-                              title="Remove column"
-                              style={{
-                                background: "#f1f5f9",
-                                border: "1px solid black",
-                                padding: "0px 5px",
-                                color: "#000",
-                                boxShadow: "none",
-                                lineHeight: "20px",
-                              }}
-                            >
-                              ×
-                            </button>
-                          )}
-                        </SortableColumn>
-                      ))}
-                      <th
-                        className="px-4 py-4 text-center font-bold border-b-2 border-white/20 text-white"
-                        style={{
-                          color: "#fff",
-                          textTransform: "uppercase",
-                          fontSize: "12px",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {items.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={columns.length + 2}
-                          className="text-center py-4 text-[#019b98]/60"
-                        >
-                          <svg
-                            width="32"
-                            height="32"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="#019b98"
-                            strokeWidth="2.2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="inline-block mr-2 icon-svg"
-                          >
-                            <rect x="3" y="3" width="18" height="18" rx="4" />
-                            <path d="M7 7h10M7 12h7M7 17h5" />
-                          </svg>
-                          No items
-                        </td>
-                      </tr>
-                    ) : (
-                      <>
-                        {currentPage > 1 && (
-                          <tr>
-                            <td
-                              colSpan={columns.length + 2}
-                              className="px-3 py-2 bg-slate-50 font-semibold text-sm"
-                            >
-                              <div className="print-page-label">
-                                {tableTitle} — Page {currentPage} of{" "}
-                                {totalPages}
-                              </div>
-                              {tableTitle}
-                            </td>
-                          </tr>
-                        )}
-                        {(() => {
-                          const start = (currentPage - 1) * rowsPerPage;
-                          const pageRows = items.slice(
-                            start,
-                            start + rowsPerPage
-                          );
-                          return pageRows.map((row, relIdx) => {
-                            const rowIdx = start + relIdx;
-                            return (
-                              <SortableRow
-                                key={row.id || rowIdx}
-                                row={row}
-                                rowIdx={rowIdx}
+                              className="font-bold text-xs border-none bg-transparent flex-1 min-w-[80px] px-1 py-0.5 rounded focus:ring-2 focus:ring-blue-200 focus:bg-white transition-all"
+                              placeholder="Column Title"
+                              style={{ color: "#000" }}
+                            />
+                            {columns.length > 1 && (
+                              <button
+                                onClick={() => {
+                                  const colKey = col.key;
+                                  setBillData((prev) => ({
+                                    ...prev,
+                                    columns: columns.filter(
+                                      (_, cidx) => cidx !== idx,
+                                    ),
+                                    items: items.map((row) => {
+                                      const newRow = { ...row };
+                                      delete newRow[colKey];
+                                      return newRow;
+                                    }),
+                                  }));
+                                }}
+                                className="px-1 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-500 cursor-pointer text-sm ml-2"
+                                title="Remove column"
+                                style={{
+                                  background: "#f1f5f9",
+                                  border: "1px solid black",
+                                  padding: "0px 5px",
+                                  color: "#000",
+                                  boxShadow: "none",
+                                  lineHeight: "20px",
+                                }}
                               >
-                                <td
-                                  className="px-2 py-2 text-center border-r border-gray-200 transition-colors"
-                                  style={{
-                                    cursor: "grab",
-                                    color: "#019b98",
-                                    width: 40,
-                                  }}
-                                  title="Drag to reorder rows"
+                                ×
+                              </button>
+                            )}
+                          </SortableColumn>
+                        ))}
+                        <th
+                          className="px-4 py-4 text-center font-bold border-b-2 border-white/20 text-white"
+                          style={{
+                            color: "#fff",
+                            textTransform: "uppercase",
+                            fontSize: "12px",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {items.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={columns.length + 2}
+                            className="text-center py-4 text-[#019b98]/60"
+                          >
+                            <svg
+                              width="32"
+                              height="32"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="#019b98"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="inline-block mr-2 icon-svg"
+                            >
+                              <rect x="3" y="3" width="18" height="18" rx="4" />
+                              <path d="M7 7h10M7 12h7M7 17h5" />
+                            </svg>
+                            No items
+                          </td>
+                        </tr>
+                      ) : (
+                        <>
+                          {currentPage > 1 && (
+                            <tr>
+                              <td
+                                colSpan={columns.length + 2}
+                                className="px-3 py-2 bg-slate-50 font-semibold text-sm"
+                              >
+                                <div className="print-page-label">
+                                  {tableTitle} — Page {currentPage} of{" "}
+                                  {totalPages}
+                                </div>
+                                {tableTitle}
+                              </td>
+                            </tr>
+                          )}
+                          {(() => {
+                            const start = (currentPage - 1) * rowsPerPage;
+                            const pageRows = items.slice(
+                              start,
+                              start + rowsPerPage,
+                            );
+                            return pageRows.map((row, relIdx) => {
+                              const rowIdx = start + relIdx;
+                              return (
+                                <SortableRow
+                                  key={row.id || rowIdx}
+                                  row={row}
+                                  rowIdx={rowIdx}
                                 >
-                                  <svg
-                                    width="16"
-                                    height="16"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <path d="M3 7h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
-                                  </svg>
-                                </td>
-                                {columns.map((col) => {
-                                  const inputType = col.type || "text";
-                                  let readOnly = false;
-                                  let displayValue = row[col.key];
-                                  // For formula columns, calculateRowFormulas may have stored array results
-                                  if (col.type === "formula" && col.formula) {
-                                    readOnly = true;
-                                  }
-                                  const isLongText = isLongTextColumn(col);
-                                  return (
-                                    <td
-                                      key={col.key}
-                                      className="px-3 py-2 align-top border-r border-gray-200 last:border-r-0 transition-colors"
-                                      style={{
-                                        color: "#1f2937",
-                                        whiteSpace: "pre-wrap",
-                                        wordBreak: "break-word",
-                                        overflowWrap: "anywhere",
-                                        minWidth: isLongText ? 180 : 100,
-                                        width: isLongText ? "auto" : undefined,
-                                        fontSize: "13px",
-                                      }}
-                                    >
-                                      <EditableCell
-                                        row={row}
-                                        rowIdx={rowIdx}
-                                        col={col}
-                                        inputType={inputType}
-                                        readOnly={readOnly}
-                                        displayValue={displayValue}
-                                      />
-                                    </td>
-                                  );
-                                })}
-                                <td
-                                  className="px-2 py-1 text-center"
-                                  style={{ color: "#000" }}
-                                >
-                                  <button
-                                    onClick={() =>
-                                      setBillData((prev) => ({
-                                        ...prev,
-                                        items: items.filter(
-                                          (_, idx) => idx !== rowIdx
-                                        ),
-                                      }))
-                                    }
-                                    className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md border-2 border-red-500 bg-red-50 text-red-500 font-semibold shadow-sm hover:bg-red-500 hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-sm"
-                                    title="Remove item"
-                                    aria-label="Remove item"
+                                  <td
+                                    className="px-2 py-2 text-center border-r border-gray-200 transition-colors"
+                                    style={{
+                                      cursor: "grab",
+                                      color: "#019b98",
+                                      width: 40,
+                                    }}
+                                    title="Drag to reorder rows"
                                   >
                                     <svg
                                       width="16"
@@ -2088,245 +2614,322 @@ export default function ItemsTable({
                                       strokeLinejoin="round"
                                       className="icon-svg"
                                     >
-                                      <polyline points="3,6 5,6 21,6" />
-                                      <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
-                                      <line x1="10" y1="11" x2="10" y2="17" />
-                                      <line x1="14" y1="11" x2="14" y2="17" />
+                                      <path d="M3 7h18v2H3V7zm0 4h18v2H3v-2zm0 4h18v2H3v-2z" />
                                     </svg>
-                                    <span className="sr-only">Remove</span>
-                                  </button>
-                                </td>
-                              </SortableRow>
-                            );
-                          });
-                        })()}
+                                  </td>
+                                  {columns.map((col) => {
+                                    const inputType = col.type || "text";
+                                    let readOnly = false;
+                                    let displayValue = row[col.key];
+                                    // For formula columns, calculateRowFormulas may have stored array results
+                                    if (col.type === "formula" && col.formula) {
+                                      readOnly = true;
+                                    }
+                                    const isLongText = isLongTextColumn(col);
+                                    return (
+                                      <td
+                                        key={col.key}
+                                        className="px-3 py-2 align-top border-r border-gray-200 last:border-r-0 transition-colors"
+                                        style={{
+                                          color: "#1f2937",
+                                          whiteSpace: "pre-wrap",
+                                          wordBreak: "break-word",
+                                          overflowWrap: "anywhere",
+                                          minWidth: isLongText ? 180 : 100,
+                                          width: isLongText
+                                            ? "auto"
+                                            : undefined,
+                                          fontSize: "13px",
+                                        }}
+                                      >
+                                        <EditableCell
+                                          row={row}
+                                          rowIdx={rowIdx}
+                                          col={col}
+                                          inputType={inputType}
+                                          readOnly={readOnly}
+                                          displayValue={displayValue}
+                                        />
+                                      </td>
+                                    );
+                                  })}
+                                  <td
+                                    className="px-2 py-1 text-center"
+                                    style={{ color: "#000" }}
+                                  >
+                                    <button
+                                      onClick={() =>
+                                        setBillData((prev) => ({
+                                          ...prev,
+                                          items: items.filter(
+                                            (_, idx) => idx !== rowIdx,
+                                          ),
+                                        }))
+                                      }
+                                      className="inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md border-2 border-red-500 bg-red-50 text-red-500 font-semibold shadow-sm hover:bg-red-500 hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 text-sm"
+                                      title="Remove item"
+                                      aria-label="Remove item"
+                                    >
+                                      <svg
+                                        width="16"
+                                        height="16"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.2"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className="icon-svg"
+                                      >
+                                        <polyline points="3,6 5,6 21,6" />
+                                        <path d="M19,6v14a2,2,0,0,1-2,2H7a2,2,0,0,1-2-2V6m3,0V4a2,2,0,0,1,2-2h4a2,2,0,0,1,2,2V6" />
+                                        <line x1="10" y1="11" x2="10" y2="17" />
+                                        <line x1="14" y1="11" x2="14" y2="17" />
+                                      </svg>
+                                      <span className="sr-only">Remove</span>
+                                    </button>
+                                  </td>
+                                </SortableRow>
+                              );
+                            });
+                          })()}
 
-                        {/* Totals Row */}
-                        {items.length > 0 && (
-                          <tr className="bg-gray-50 border-t-2 border-gray-300">
+                          {/* Totals Row */}
+                          {items.length > 0 && (
+                            <tr className="bg-gray-50 border-t-2 border-gray-300">
+                              <td
+                                className="px-3 py-2 font-bold text-gray-700"
+                                colSpan="1"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2.2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m0-7v7m0-7h10a2 2 0 0 1 2 2v3c0 1.1-.9 2-2 2H9m0-7V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                  </svg>
+                                  <span>TOTALS</span>
+                                </div>
+                              </td>
+                              {columns.map((col) => {
+                                const total = columnTotals[col.key];
+                                const isNumericColumn =
+                                  col.type === "number" ||
+                                  col.type === "formula";
+
+                                // Debug logging for each column (disabled)
+
+                                return (
+                                  <td
+                                    key={col.key}
+                                    className={`px-3 py-2 font-bold text-right ${
+                                      isNumericColumn
+                                        ? "text-green-700 bg-green-50"
+                                        : "text-gray-500"
+                                    }`}
+                                  >
+                                    {isNumericColumn && total ? (
+                                      col.key === "quantity" ? (
+                                        <span className="flex items-center justify-end">
+                                          <span>{total}</span>
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center justify-end gap-1">
+                                          <span>₹</span>
+                                          <span>{total}</span>
+                                        </span>
+                                      )
+                                    ) : (
+                                      <span className="text-gray-400">-</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-3 py-2"></td>
+                            </tr>
+                          )}
+
+                          <tr>
                             <td
-                              className="px-3 py-2 font-bold text-gray-700"
-                              colSpan="2"
+                              colSpan={columns.length + 2}
+                              className="text-center py-2"
                             >
-                              <div className="flex items-center gap-2">
-                                <svg
-                                  width="16"
-                                  height="16"
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2.2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M9 11H5a2 2 0 0 0-2 2v3c0 1.1.9 2 2 2h4m0-7v7m0-7h10a2 2 0 0 1 2 2v3c0 1.1-.9 2-2 2H9m0-7V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-                                </svg>
-                                <span>TOTALS</span>
+                              <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-2">
+                                {/* Rows per page selector */}
+                                <div className="flex items-center gap-2 order-1 lg:order-1">
+                                  <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
+                                    Rows per page:
+                                  </label>
+                                  <select
+                                    value={rowsPerPage}
+                                    onChange={(e) => {
+                                      const newRowsPerPage = Number(
+                                        e.target.value,
+                                      );
+                                      setBillData((prev) => ({
+                                        ...prev,
+                                        rowsPerPage: newRowsPerPage,
+                                      }));
+                                      setCurrentPage(1); // Reset to first page
+                                    }}
+                                    className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent min-w-0"
+                                  >
+                                    <option value={1}>1</option>
+                                    <option value={5}>5</option>
+                                    <option value={8}>8</option>
+                                    <option value={10}>10</option>
+                                  </select>
+                                </div>
+
+                                {/* Pagination controls */}
+                                <div className="flex items-center gap-2 order-2 lg:order-2">
+                                  <button
+                                    onClick={() =>
+                                      setCurrentPage((p) => Math.max(1, p - 1))
+                                    }
+                                    disabled={currentPage <= 1}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                                      currentPage <= 1
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Previous page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <polyline points="15,18 9,12 15,6" />
+                                    </svg>
+                                    <span className="hidden sm:inline">
+                                      Prev
+                                    </span>
+                                  </button>
+                                  <div className="text-sm text-gray-600 px-1 sm:px-2 whitespace-nowrap">
+                                    Page {currentPage} / {totalPages}
+                                  </div>
+                                  <button
+                                    onClick={() =>
+                                      setCurrentPage((p) =>
+                                        Math.min(totalPages, p + 1),
+                                      )
+                                    }
+                                    disabled={currentPage >= totalPages}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                                      currentPage >= totalPages
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Next page"
+                                  >
+                                    <span className="hidden sm:inline">
+                                      Next
+                                    </span>
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <polyline points="9,18 15,12 9,6" />
+                                    </svg>
+                                  </button>
+                                </div>
+
+                                {/* Page management buttons */}
+                                <div className="flex items-center gap-1 sm:gap-2 order-3 lg:order-3">
+                                  <button
+                                    onClick={() => changeManualExtraPages(1)}
+                                    className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ffd700] bg-[#fffbe6] text-[#bfa100] font-semibold shadow-sm hover:bg-[#ffd700] hover:text-[#311703] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ffd700] focus:ring-offset-2 text-sm"
+                                    aria-label="Add page"
+                                    title="Add empty page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14,2 14,8 20,8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                      <polyline points="10,9 9,9 8,9" />
+                                    </svg>
+                                    <span className="hidden md:inline">
+                                      Add Page
+                                    </span>
+                                  </button>
+                                  <button
+                                    onClick={() => changeManualExtraPages(-1)}
+                                    disabled={manualExtraPages <= 0}
+                                    className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ff7f50] bg-[#fff0ea] text-[#ff7f50] font-semibold shadow-sm hover:bg-[#ff7f50] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ff7f50] focus:ring-offset-2 text-sm ${
+                                      manualExtraPages <= 0
+                                        ? "opacity-60 cursor-not-allowed"
+                                        : ""
+                                    }`}
+                                    aria-label="Remove page"
+                                    title="Remove last empty page"
+                                  >
+                                    <svg
+                                      width="14"
+                                      height="14"
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      className="icon-svg"
+                                    >
+                                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                      <polyline points="14,2 14,8 20,8" />
+                                      <line x1="16" y1="13" x2="8" y2="13" />
+                                      <line x1="16" y1="17" x2="8" y2="17" />
+                                      <polyline points="10,9 9,9 8,9" />
+                                      <line x1="8" y1="11" x2="16" y2="11" />
+                                    </svg>
+                                    <span className="hidden md:inline">
+                                      Remove Page
+                                    </span>
+                                  </button>
+                                </div>
                               </div>
                             </td>
-                            {columns.map((col) => {
-                              const total = columnTotals[col.key];
-                              const isNumericColumn =
-                                col.type === "number" || col.type === "formula";
-
-                              // Debug logging for each column (disabled)
-
-                              return (
-                                <td
-                                  key={col.key}
-                                  className={`px-3 py-2 font-bold text-right ${isNumericColumn
-                                      ? "text-green-700 bg-green-50"
-                                      : "text-gray-500"
-                                    }`}
-                                >
-                                  {isNumericColumn && total ? (
-                                    col.key === "quantity" ? (
-                                      <span className="flex items-center justify-end">
-                                        <span>{total}</span>
-                                      </span>
-                                    ) : (
-                                      <span className="flex items-center justify-end gap-1">
-                                        <span>₹</span>
-                                        <span>{total}</span>
-                                      </span>
-                                    )
-                                  ) : (
-                                    <span className="text-gray-400">-</span>
-                                  )}
-                                </td>
-                              );
-                            })}
-                            <td className="px-3 py-2"></td>
                           </tr>
-                        )}
-
-                        <tr>
-                          <td
-                            colSpan={columns.length + 2}
-                            className="text-center py-2"
-                          >
-                            <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-2">
-                              {/* Rows per page selector */}
-                              <div className="flex items-center gap-2 order-1 lg:order-1">
-                                <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
-                                  Rows per page:
-                                </label>
-                                <select
-                                  value={rowsPerPage}
-                                  onChange={(e) => {
-                                    const newRowsPerPage = Number(
-                                      e.target.value
-                                    );
-                                    setBillData((prev) => ({
-                                      ...prev,
-                                      rowsPerPage: newRowsPerPage,
-                                    }));
-                                    setCurrentPage(1); // Reset to first page
-                                  }}
-                                  className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent min-w-0"
-                                >
-                                  <option value={1}>1</option>
-                                  <option value={5}>5</option>
-                                  <option value={8}>8</option>
-                                  <option value={10}>10</option>
-                                </select>
-                              </div>
-
-                              {/* Pagination controls */}
-                              <div className="flex items-center gap-2 order-2 lg:order-2">
-                                <button
-                                  onClick={() =>
-                                    setCurrentPage((p) => Math.max(1, p - 1))
-                                  }
-                                  disabled={currentPage <= 1}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${currentPage <= 1
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                    }`}
-                                  aria-label="Previous page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <polyline points="15,18 9,12 15,6" />
-                                  </svg>
-                                  <span className="hidden sm:inline">Prev</span>
-                                </button>
-                                <div className="text-sm text-gray-600 px-1 sm:px-2 whitespace-nowrap">
-                                  Page {currentPage} / {totalPages}
-                                </div>
-                                <button
-                                  onClick={() =>
-                                    setCurrentPage((p) =>
-                                      Math.min(totalPages, p + 1)
-                                    )
-                                  }
-                                  disabled={currentPage >= totalPages}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${currentPage >= totalPages
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                    }`}
-                                  aria-label="Next page"
-                                >
-                                  <span className="hidden sm:inline">Next</span>
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <polyline points="9,18 15,12 9,6" />
-                                  </svg>
-                                </button>
-                              </div>
-
-                              {/* Page management buttons */}
-                              <div className="flex items-center gap-1 sm:gap-2 order-3 lg:order-3">
-                                <button
-                                  onClick={() => changeManualExtraPages(1)}
-                                  className="inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ffd700] bg-[#fffbe6] text-[#bfa100] font-semibold shadow-sm hover:bg-[#ffd700] hover:text-[#311703] transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ffd700] focus:ring-offset-2 text-sm"
-                                  aria-label="Add page"
-                                  title="Add empty page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                    <polyline points="14,2 14,8 20,8" />
-                                    <line x1="16" y1="13" x2="8" y2="13" />
-                                    <line x1="16" y1="17" x2="8" y2="17" />
-                                    <polyline points="10,9 9,9 8,9" />
-                                  </svg>
-                                  <span className="hidden md:inline">
-                                    Add Page
-                                  </span>
-                                </button>
-                                <button
-                                  onClick={() => changeManualExtraPages(-1)}
-                                  disabled={manualExtraPages <= 0}
-                                  className={`inline-flex items-center gap-1 px-2 sm:px-3 py-1 rounded-md border-2 border-[#ff7f50] bg-[#fff0ea] text-[#ff7f50] font-semibold shadow-sm hover:bg-[#ff7f50] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#ff7f50] focus:ring-offset-2 text-sm ${manualExtraPages <= 0
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                    }`}
-                                  aria-label="Remove page"
-                                  title="Remove last empty page"
-                                >
-                                  <svg
-                                    width="14"
-                                    height="14"
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    strokeWidth="2.2"
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    className="icon-svg"
-                                  >
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                    <polyline points="14,2 14,8 20,8" />
-                                    <line x1="16" y1="13" x2="8" y2="13" />
-                                    <line x1="16" y1="17" x2="8" y2="17" />
-                                    <polyline points="10,9 9,9 8,9" />
-                                    <line x1="8" y1="11" x2="16" y2="11" />
-                                  </svg>
-                                  <span className="hidden md:inline">
-                                    Remove Page
-                                  </span>
-                                </button>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      </>
-                    )}
-                  </tbody>
-                </table>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </SortableContext>
               </SortableContext>
-            </SortableContext>
-          </DndContext>
+            </DndContext>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ✅ Move fade-in style OUTSIDE of tbody/tr */}
       <style jsx>{`
@@ -2992,8 +3595,6 @@ export default function ItemsTable({
         </div>
       )}
 
-
-
       {/* Bulk Add Rows Modal */}
       {showBulkAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -3030,7 +3631,7 @@ export default function ItemsTable({
                   value={bulkAddCount}
                   onChange={(e) =>
                     setBulkAddCount(
-                      Math.max(1, Math.min(50, parseInt(e.target.value) || 1))
+                      Math.max(1, Math.min(50, parseInt(e.target.value) || 1)),
                     )
                   }
                   className="w-full border border-gray-200 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"

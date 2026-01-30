@@ -1,8 +1,7 @@
 import { create, all } from "mathjs";
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import toast from "react-hot-toast";
 import { exportToPDF, printBill } from "../utils/pdfGenerator";
-import { uploadToGem } from "../utils/gemUpload";
 
 // --- Formula Calculation Logic ---
 // Math.js instance
@@ -21,7 +20,7 @@ const FormulaUtils = {
       if (c.type === "formula" && c.formula) {
         try {
           map[c.key] = math.compile(c.formula);
-        } catch {}
+        } catch { }
       }
     });
     return map;
@@ -91,7 +90,6 @@ export default function BillGenerator({
   onSaveBill,
 }) {
   const [isExporting, setIsExporting] = useState(false);
-  const [isUploadingToGem, setIsUploadingToGem] = useState(false);
   const [orderNo, setOrderNo] = useState(billData.orderNo || "");
 
   // Keep local orderNo in sync when parent billData changes
@@ -125,9 +123,8 @@ export default function BillGenerator({
         srNoDate:
           item.srNoDate !== undefined
             ? item.srNoDate
-            : `${idx + 1}${
-                item.dates && item.dates[0] ? " / " + item.dates[0] : ""
-              }`,
+            : `${idx + 1}${item.dates && item.dates[0] ? " / " + item.dates[0] : ""
+            }`,
       };
       return FormulaUtils.calculateRow(withSr, columns, compiledFormulas);
     });
@@ -350,40 +347,7 @@ export default function BillGenerator({
     printBill("bill-content", billData.billNumber);
   };
 
-  // Upload to Gem portal (no automatic file upload; only navigation + field autofill)
-  const handleUploadToGem = async () => {
-    if (isUploadingToGem) return;
 
-    setIsUploadingToGem(true);
-    const toastId = toast.loading("Opening Gem portal...");
-
-    try {
-      // Prepare bill metadata for Gem script
-      const invoiceNo = billData.billNumber || "";
-      const subtotal = Number(calculateSubtotal() || 0);
-      const grandTotal = Number(calculateTotal() || 0);
-      const gstin = "27AAACR2831H1ZK";
-
-      const meta = {
-        invoiceNo,
-        subtotal,
-        grandTotal,
-        gstin,
-      };
-
-      // Start the Gem automation script with metadata;
-      // user will still handle PDF upload manually in the browser.
-      await uploadToGem(meta);
-      toast.success("Gem portal automation started. Use the browser to upload your PDF.", {
-        id: toastId,
-      });
-    } catch (error) {
-      console.error("Error starting Gem automation:", error);
-      toast.error(`Failed to open Gem portal: ${error.message}`, { id: toastId });
-    } finally {
-      setIsUploadingToGem(false);
-    }
-  };
 
   const handleSaveBill = () => {
     try {
@@ -1143,70 +1107,84 @@ export default function BillGenerator({
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative border border-gray-900">
-          <button
-            onClick={onClose}
-            className="print:hidden absolute top-4 right-4 z-10 bg-red-600 text-white w-8 h-8 flex items-center justify-center"
-          >
-            ✕
-          </button>
+        <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative border-2 border-gray-200 rounded-lg">
+          {/* Modern Button Toolbar */}
+          <div className="print:hidden bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200 px-6 py-4 sticky top-0 z-10">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex flex-wrap gap-3 items-center justify-between">
+                {/* Primary Actions */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveBill}
+                    className="btn btn-success shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
+                    title="Save bill as JSON file"
+                  >
+                    <span>💾</span> Save
+                  </button>
+                  <button
+                    onClick={handleExportToPDF}
+                    disabled={isExporting}
+                    className="btn btn-primary shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
+                    title="Export bill as PDF"
+                  >
+                    <span>📄</span> {isExporting ? "Generating..." : "PDF"}
+                  </button>
+                  <button
+                    onClick={handlePrintBill}
+                    className="btn btn-secondary shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
+                    title="Print bill"
+                  >
+                    <span>🖨️</span> Print
+                  </button>
+                </div>
 
-          <div className="absolute top-4 left-4 z-10 flex space-x-2">
-            <button
-              onClick={handleSaveBill}
-              className="bg-green-600 text-white px-4 py-2 text-sm font-semibold"
-            >
-              💾 Save JSON
-            </button>
-            <button
-              onClick={handleExportToPDF}
-              disabled={isExporting}
-              className="bg-blue-600 text-white px-4 py-2 text-sm font-semibold"
-            >
-              {isExporting ? "Generating..." : "📄 PDF"}
-            </button>
-            <button
-              onClick={handlePrintBill}
-              className="bg-purple-600 text-white px-4 py-2 text-sm font-semibold"
-            >
-              🖨️ Print
-            </button>
-          <button
-            onClick={handleCopyCredentials}
-            className="bg-amber-600 text-white px-4 py-2 text-sm font-semibold"
-            title="Copy key bill details to clipboard"
-          >
-            📋 Copy Credentials
-          </button>
-            <button
-              onClick={handleUploadToGem}
-              disabled={isUploadingToGem}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 text-sm font-semibold hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md hover:shadow-lg"
-              title="Upload PDF bill to Gem portal using automation"
-            >
-              {isUploadingToGem ? "⏳ Uploading..." : "🚀 Upload to Gem"}
-            </button>
-            <button
-              onClick={onEdit}
-              className="bg-gray-600 text-white px-4 py-2 text-sm font-semibold"
-            >
-              ✏️ Edit
-            </button>
+                {/* Secondary Actions & Close */}
+                <div className="flex gap-2 items-center">
+                  <div className="flex gap-2 border-l-2 border-gray-300 pl-3">
+                    <button
+                      onClick={handleCopyCredentials}
+                      className="btn btn-outline shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm"
+                      title="Copy key bill details to clipboard"
+                    >
+                      <span>📋</span> Copy Details
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={onEdit}
+                    className="btn btn-outline shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm border-2 border-[#0d9488] text-[#0d9488] hover:bg-[#0d9488] hover:text-white"
+                    title="Edit bill details"
+                  >
+                    <span>✏️</span> Edit
+                  </button>
+
+                  <button
+                    onClick={onClose}
+                    className="print:hidden bg-red-500 hover:bg-red-600 text-white w-10 h-10 flex items-center justify-center rounded-full shadow-lg transition-all duration-200 hover:scale-110 ml-2"
+                    title="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div id="bill-content" className="p-6 pt-16">
+          <div id="bill-content" className="p-6 pt-20">
             {pagedRows.map((pageRows, pageIndex) => (
               <div
-                  key={`page-${pageIndex}`}
-                  style={{
-                    width: "var(--peipl-print-width, 210mm)",
-                    minHeight: "var(--peipl-print-height, 297mm)",
-                    margin: "0 auto 20px auto",
-                    pageBreakAfter: "always",
-                    backgroundColor: "#ffffff",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                  }}
-                >
+                key={`page-${pageIndex}`}
+                style={{
+                  width: "var(--peipl-print-width, 210mm)",
+                  minHeight: "var(--peipl-print-height, 297mm)",
+                  margin: "0 auto 24px auto",
+                  pageBreakAfter: "always",
+                  backgroundColor: "#ffffff",
+                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                  borderRadius: "4px",
+                  border: "1px solid #e5e7eb",
+                }}
+              >
                 <BillContent
                   rowsForPage={pageRows}
                   pageIndex={pageIndex}
@@ -1221,13 +1199,15 @@ export default function BillGenerator({
                 <div
                   key={`manual-${i}`}
                   style={{
-                      width: "var(--peipl-print-width, 210mm)",
-                      minHeight: "var(--peipl-print-height, 297mm)",
-                      margin: "0 auto 20px auto",
-                      pageBreakAfter: "always",
-                      backgroundColor: "#ffffff",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    }}
+                    width: "var(--peipl-print-width, 210mm)",
+                    minHeight: "var(--peipl-print-height, 297mm)",
+                    margin: "0 auto 24px auto",
+                    pageBreakAfter: "always",
+                    backgroundColor: "#ffffff",
+                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                    borderRadius: "4px",
+                    border: "1px solid #e5e7eb",
+                  }}
                 >
                   <div
                     style={{

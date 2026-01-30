@@ -51,12 +51,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("window-unmaximized", callback);
   },
 
-  // Gem upload automation
-  uploadToGem: (meta) => ipcRenderer.invoke("gem-upload", meta),
-  getTempDir: () => ipcRenderer.invoke("get-temp-dir"),
-  savePDFFile: (dirPath, filename, base64Data) =>
-    ipcRenderer.invoke("save-pdf-file", dirPath, filename, base64Data),
-
+ 
   // Bill folder tracking
   selectBillFolder: () => ipcRenderer.invoke("select-bill-folder"),
   scanFolderStructure: (folderPath) =>

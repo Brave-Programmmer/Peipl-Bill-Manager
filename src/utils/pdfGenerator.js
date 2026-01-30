@@ -117,7 +117,8 @@ export const exportToPDF = async (
         const sliceHeightMM = sliceHeight / pxPerMm;
 
         if (yPos > 0) pdf.addPage();
-        pdf.addImage(sliceData, "JPEG", 0, 0, pageWidthMM, sliceHeightMM);
+        const sliceX = (pageWidthMM - pageWidthMM) / 2;
+        pdf.addImage(sliceData, "JPEG", sliceX, 0, pageWidthMM, sliceHeightMM);
         yPos += sliceHeight;
         // Cleanup canvas context to prevent memory leak
         ctx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);
@@ -132,7 +133,7 @@ export const exportToPDF = async (
       .toISOString()
       .slice(0, 10)}.pdf`;
 
-    // If savePath is provided, save to that location (for Gem upload)
+    // If savePath is provided, save to that location
     if (
       setIsExporting &&
       typeof setIsExporting === "object" &&
@@ -163,7 +164,7 @@ export const exportToPDF = async (
             filename,
             base64,
           );
-          toast.success("PDF saved for Gem upload", { id: toastId });
+          toast.success("PDF saved", { id: toastId });
           return fullPath;
         } else {
           // Fallback to download
@@ -265,9 +266,9 @@ export const printBill = async (billElementId, billNumber) => {
     const imgHeightMM = canvas.height / pxPerMm;
 
     if (imgHeightMM <= pageHeightMM) {
+      const scaledWidth = canvas.width / pxPerMm;
       const scaledHeight = imgHeightMM;
-      const scaledWidth = pageWidthMM;
-      const x = 0;
+      const x = (pageWidthMM - scaledWidth) / 2;
       const y = (pageHeightMM - scaledHeight) / 2;
       pdf.addImage(imgData, "PNG", x, y, scaledWidth, scaledHeight);
     } else {
@@ -282,8 +283,10 @@ export const printBill = async (billElementId, billNumber) => {
         ctx.drawImage(canvas, 0, yPos, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
         const sliceData = sliceCanvas.toDataURL("image/png");
         const sliceHeightMM = sliceHeight / pxPerMm;
+        const sliceWidth = canvas.width / pxPerMm;
+        const sliceX = (pageWidthMM - sliceWidth) / 2;
         if (yPos > 0) pdf.addPage();
-        pdf.addImage(sliceData, "PNG", 0, 0, pageWidthMM, sliceHeightMM);
+        pdf.addImage(sliceData, "PNG", sliceX, 0, sliceWidth, sliceHeightMM);
         yPos += sliceHeight;
         // Cleanup canvas context to prevent memory leak
         ctx.clearRect(0, 0, sliceCanvas.width, sliceCanvas.height);

@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState } from "react";
 import CustomerInfo from "./CustomerInfo";
 
 // Hamburger menu icon
@@ -372,7 +372,7 @@ function EditCompanyButton({ companyInfo, setCompanyInfo }) {
       ) : (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white text-gray-900 w-full max-w-md rounded-2xl shadow-2xl border-2 border-gray-200 overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+            <div className=" bg-gradient-to-r from-[#019b98] to-[#0a7a78]  px-6 py-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <svg
                   width="20"
@@ -448,8 +448,6 @@ function EditCompanyButton({ companyInfo, setCompanyInfo }) {
     </>
   );
 }
-
-const MemoEditCompanyButton = memo(EditCompanyButton);
 
 /* -------------------- Inputs -------------------- */
 function LabeledInput({ label, value, onChange, type = "text", placeholder }) {
