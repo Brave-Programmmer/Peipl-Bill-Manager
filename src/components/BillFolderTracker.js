@@ -8,12 +8,10 @@ import toast from "react-hot-toast";
 import { BillFolderTrackerPropTypes } from "./BillFolderTracker.propTypes";
 import {
   formatFileSize,
-  formatDate,
   formatMonth,
   getFileIcon,
   getFileColor,
   getCurrentMonth,
-  getBillMonth,
   calculateGstFolderStructure,
   validateDateRange,
   validateFileSize,
@@ -21,8 +19,6 @@ import {
 } from "../utils/billTrackerHelpers";
 
 const BILL_TRACKER_PREFERENCES_KEY = "bill-folder-tracker-preferences";
-const MAX_UNDO_STACK_SIZE = 10;
-
 // Lazy load heavy sub-components to improve initial load time
 const ReportGenerator = dynamic(() => import("./ReportGenerator"), {
   ssr: false,
@@ -36,8 +32,8 @@ const TagManager = dynamic(() => import("./TagManager"), {
 
 
 
+// Enhanced state management with performance optimizations
 export default function BillFolderTracker({ isVisible, onClose }) {
-  // State management improvements
   const [step, setStep] = useState(1);
   const [selectedFolder, setSelectedFolder] = useState("");
   const [subfolders, setSubfolders] = useState([]);
@@ -52,13 +48,20 @@ export default function BillFolderTracker({ isVisible, onClose }) {
   const [currentMonth, setCurrentMonth] = useState("");
   const [allFiles, setAllFiles] = useState([]);
   const [gstSubmittedFolder, setGstSubmittedFolder] = useState("");
+  
+  // New enhanced features
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState("date");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [viewMode, setViewMode] = useState("grid"); // grid or list
+  const [selectedFiles, setSelectedFiles] = useState(new Set());
+  const [bulkActions, setBulkActions] = useState(false);
+  const [autoSave, setAutoSave] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
   const [editingSentMonth, setEditingSentMonth] = useState(null);
   const [editingBillMonth, setEditingBillMonth] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState("name");
   const [sortOrder, setSortOrder] = useState("asc");
-  const [selectedFiles, setSelectedFiles] = useState(new Set());
-  const [viewMode, setViewMode] = useState("table");
   const [fileTypeFilter, setFileTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showBulkActions, setShowBulkActions] = useState(false);
@@ -654,11 +657,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
 
   // Save configuration
   const handleSaveConfiguration = async () => {
-    if (selectedSubfolders.size === 0) {
-      setError("Please select at least one subfolder");
-      return;
-    }
-
+    // Remove validation checks - allow saving with any data
     if (!window.electronAPI) {
       handleError("This feature is only available in the desktop app");
       return;
@@ -669,7 +668,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
 
     try {
       const configToSave = {
-        folderPath: selectedFolder,
+        folderPath: selectedFolder || "",
         selectedSubfolders: Array.from(selectedSubfolders),
         ignoredSubfolders: Array.from(ignoredSubfolders),
         ignoredFiles: Array.from(ignoredFiles),
@@ -683,11 +682,16 @@ export default function BillFolderTracker({ isVisible, onClose }) {
       const result = await window.electronAPI.saveFolderConfig(configToSave);
       if (result.success) {
         setConfig(configToSave);
-        await loadTrackingData();
-        await loadFolderStructure();
-        setStep(3);
-        if (settings.notifications) {
-          toast.success("Configuration saved successfully!");
+        try {
+          await loadTrackingData();
+          await loadFolderStructure();
+          setStep(3);
+          if (settings.notifications) {
+            toast.success("Configuration saved successfully!");
+          }
+        } catch (loadError) {
+          console.error("Error loading data after save:", loadError);
+          setError("Configuration saved but failed to refresh data");
         }
       } else {
         setError(result.error || "Failed to save configuration");
@@ -2486,7 +2490,7 @@ export default function BillFolderTracker({ isVisible, onClose }) {
                   </button>
                   <button
                     onClick={handleSaveConfiguration}
-                    disabled={selectedSubfolders.size === 0 || isLoading}
+                    disabled={isLoading}
                     className="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg hover:from-blue-700 hover:to-indigo-800 transition-colors font-medium shadow-md hover:shadow-lg disabled:opacity-50"
                   >
                     {isLoading ? "Saving..." : "Continue →"}

@@ -15,11 +15,8 @@ import CustomTitleBar from "../components/CustomTitleBar";
 import toast from "react-hot-toast";
 import {
   validateCompleteBillData,
-  validateBillNumber,
-  validateCustomerName,
-  validateAddress,
-  validateGST,
-} from "../utils/validation";
+  generateDefaultFileName,
+} from "../utils/billValidation";
 
 // Create a loading spinner component for Suspense fallback
 const LoadingFallback = () => (
@@ -562,45 +559,69 @@ export default function Home() {
 
   const handleSaveBillFile = useCallback(async () => {
     try {
+      // Remove validation checks - allow saving with any data
+      // Only ensure basic structure exists
+      
       // Only save raw bill data and company info, not calculated totals
       const { subtotal, totalCGST, totalSGST, total, ...rawBillData } =
         billData;
       const completeBillData = {
         ...rawBillData,
-        companyInfo,
+        companyInfo: companyInfo || {},
         savedAt: new Date().toISOString(),
+        version: "2.5.0", // Add version tracking
+        itemCount: billData?.items?.length || 0,
       };
 
       if (window.electronAPI) {
         // Desktop app - use native file dialog
         const result = await window.electronAPI.saveFile(completeBillData);
         if (result.success) {
-          toast.success(`Bill saved successfully to: ${result.filePath}`);
+          toast.success(`Bill saved successfully to: ${result.fileName || result.filePath}`);
+          // Update window title with saved file name
+          if (result.fileName) {
+            document.title = `PEIPL Bill Manager - ${result.fileName}`;
+          }
         } else {
           toast.error(`Error saving bill: ${result.error}`);
         }
       } else {
         // Web browser - use download
-        const blob = new Blob([JSON.stringify(completeBillData, null, 2)], {
-          type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `bill_${billData.billNumber || "invoice"}_${new Date()
-          .toISOString()
-          .slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success("Bill downloaded successfully!");
+        try {
+          const blob = new Blob([JSON.stringify(completeBillData, null, 2)], {
+            type: "application/json",
+          });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = generateDefaultFileName(billData);
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          toast.success("Bill downloaded successfully!");
+        } catch (downloadError) {
+          console.error("Download error:", downloadError);
+          toast.error("Failed to download bill. Please try again.");
+        }
       }
     } catch (error) {
       console.error("Error saving bill file:", error);
-      toast.error("Error saving bill file. Please try again.");
+      toast.error(`Error saving bill file: ${error.message || 'Unknown error'}`);
     }
   }, [billData, companyInfo]);
+
+  // Listen for save bill requests from other components
+  useEffect(() => {
+    const handleSaveRequest = (event) => {
+      handleSaveBillFile();
+    };
+
+    window.addEventListener('save-bill-request', handleSaveRequest);
+    return () => {
+      window.removeEventListener('save-bill-request', handleSaveRequest);
+    };
+  }, [handleSaveBillFile]);
 
   // Persist company info on change
   useEffect(() => {
@@ -610,28 +631,7 @@ export default function Home() {
   }, [companyInfo]);
 
   const generateBill = useCallback(async () => {
-    // Use enhanced validation utilities
-    const validation = validateCompleteBillData(billData, companyInfo);
-
-    if (!validation.valid) {
-      // Show summary of errors
-      const errorMessage = validation.errors.slice(0, 3).join("\n");
-      const remainingCount = validation.errors.length - 3;
-
-      toast.error(
-        errorMessage +
-          (remainingCount > 0 ? `\n...and ${remainingCount} more errors` : ""),
-        {
-          duration: 5000,
-          icon: "❌",
-        }
-      );
-
-      // Log all errors for debugging
-      console.warn("Bill validation errors:", validation.errors);
-      return;
-    }
-
+    // Remove validation checks - allow generating with any data
     setIsLoading(true);
     try {
       // Simulate loading
@@ -693,6 +693,14 @@ export default function Home() {
         <CustomTitleBar
           onToggleSidebar={toggleSidebar}
           sidebarOpen={sidebarOpen}
+          onGenerateBill={generateBill}
+          onOpenBill={handleOpenBillFile}
+          onSaveBill={handleSaveBillFile}
+          onShowUserManual={() => setShowUserManual(true)}
+          onShowBillFolderTracker={() => setShowBillFolderTracker(true)}
+          onShowFileAssociationSetup={() => setShowFileAssociationSetup(true)}
+          isLoading={isLoading}
+          showTooltips={showTooltips}
         />
       )}
       {/* Drag and Drop Overlay */}

@@ -1,10 +1,25 @@
 "use client";
 
 import { useState, useEffect, memo } from "react";
+import TitleBarMenu from "./TitleBarMenu";
 
-function CustomTitleBar({ onToggleSidebar, sidebarOpen }) {
+function CustomTitleBar({ 
+  onToggleSidebar, 
+  sidebarOpen,
+  onGenerateBill,
+  onOpenBill,
+  onSaveBill,
+  onShowUserManual,
+  onShowBillFolderTracker,
+  onShowFileAssociationSetup,
+  isLoading,
+  showTooltips
+}) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [windowTitle, setWindowTitle] = useState("PEIPL Bill Manager");
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     // Check if running in Electron
@@ -83,8 +98,11 @@ function CustomTitleBar({ onToggleSidebar, sidebarOpen }) {
       }}
     >
       {/* Left side - Menu button, App title/logo */}
-      <div className="flex items-center gap-3" style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}>
-        {/* Hamburger Menu Button */}
+      <div
+        className="flex items-center gap-3"
+        style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
+      >
+        {/* Hamburger Menu Button (for sidebar) */}
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
@@ -127,19 +145,29 @@ function CustomTitleBar({ onToggleSidebar, sidebarOpen }) {
               )}
             </svg>
           </button>
-        )}
-        
+        )}{" "}
+        {/* TitleBar Menu */}
+        <TitleBarMenu
+          onGenerateBill={onGenerateBill}
+          onOpenBill={onOpenBill}
+          onSaveBill={onSaveBill}
+          onShowUserManual={onShowUserManual}
+          onShowBillFolderTracker={onShowBillFolderTracker}
+          onShowFileAssociationSetup={onShowFileAssociationSetup}
+          isLoading={isLoading}
+          showTooltips={showTooltips}
+        />
         <div className="flex items-center gap-2">
-        <div className="w-6 h-6 flex items-center justify-center">
-          <img
-            src="./logo.png"
-            alt="PEIPL"
-            className="w-5 h-5 object-contain"
-          />
-        </div>
-        <span className="text-white text-xs font-semibold tracking-wide">
-          PEIPL Bill Assistant
-        </span>
+          <div className="w-6 h-6 flex items-center justify-center">
+            <img
+              src="./logo.png"
+              alt="PEIPL"
+              className="w-5 h-5 object-contain"
+            />
+          </div>
+          <span className="text-white text-xs font-semibold tracking-wide">
+            PEIPL Bill Assistant
+          </span>
         </div>
       </div>
 
@@ -263,4 +291,3 @@ function CustomTitleBar({ onToggleSidebar, sidebarOpen }) {
 }
 
 export default memo(CustomTitleBar);
-

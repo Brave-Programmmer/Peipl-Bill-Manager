@@ -351,38 +351,13 @@ export default function BillGenerator({
 
   const handleSaveBill = () => {
     try {
-      // Validate bill data before saving
-      if (!billData.billNumber || billData.billNumber.trim() === "") {
-        toast.error("Bill number is required");
-        return;
-      }
-
-      if (!billData.customerName || billData.customerName.trim() === "") {
-        toast.error("Customer name is required");
-        return;
-      }
-
-      if (!billData.items || billData.items.length === 0) {
-        toast.error("At least one item is required");
-        return;
-      }
-
-      // Check if any items have empty descriptions
-      const emptyItems = billData.items.filter(
-        (item) => !item.description || item.description.trim() === ""
-      );
-
-      if (emptyItems.length > 0) {
-        const proceed = window.confirm(
-          `${emptyItems.length} item(s) have empty descriptions. Continue saving?`
-        );
-        if (!proceed) return;
-      }
-
+      // Remove validation checks - allow saving with any data
+      // Only ensure basic structure exists
+      
       const completeBillData = {
         ...billData,
-        orderNo: orderNo,
-        companyInfo,
+        orderNo: orderNo || "",
+        companyInfo: companyInfo || {},
         savedAt: new Date().toISOString(),
         subtotal: calculateSubtotal(),
         totalCGST: calculateTotalCGST(),
@@ -391,7 +366,7 @@ export default function BillGenerator({
         amountInWords: amountInWords(calculateTotal()),
         version: "2.0",
         metadata: {
-          itemCount: billData.items.length,
+          itemCount: billData?.items?.length || 0,
           pageCount: pagedRows.length,
           hasManualPages: (billData.manualExtraPages || 0) > 0,
         },
@@ -428,9 +403,9 @@ export default function BillGenerator({
         );
         savedBills.unshift({
           id: `bill_${Date.now()}`,
-          billNumber: billData.billNumber,
-          customerName: billData.customerName,
-          date: billData.date,
+          billNumber: billData.billNumber || "Unknown",
+          customerName: billData.customerName || "Unknown",
+          date: billData.date || new Date().toISOString().split("T")[0],
           total: calculateTotal(),
           savedAt: completeBillData.savedAt,
           filename: filename,
@@ -442,6 +417,7 @@ export default function BillGenerator({
         );
       } catch (storageErr) {
         console.warn("Could not save to localStorage:", storageErr);
+        // Don't fail the save operation if localStorage fails
       }
 
       toast.success(`Bill saved successfully as ${filename}`, {
@@ -450,7 +426,7 @@ export default function BillGenerator({
       });
     } catch (err) {
       console.error("Error saving bill:", err);
-      toast.error(`Failed to save bill: ${err.message}`);
+      toast.error(`Failed to save bill: ${err.message || 'Unknown error'}`);
     }
   };
 

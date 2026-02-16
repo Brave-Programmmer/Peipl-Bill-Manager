@@ -355,30 +355,60 @@ ipcMain.handle("open-file-dialog", async () => {
 });
 
 ipcMain.handle("save-file-dialog", async (event, billData) => {
-  const sanitizedBillNumber = (billData.billNumber || "invoice")
-    .replace(/[^a-z0-9]/gi, "_")
-    .toLowerCase();
-
-  const result = await dialog.showSaveDialog(mainWindow, {
-    filters: [
-      { name: "PEIPL Bill Files", extensions: ["peiplbill"] },
-      { name: "JSON Files", extensions: ["json"] },
-      { name: "All Files", extensions: ["*"] },
-    ],
-    defaultPath: `bill_${sanitizedBillNumber}_${
-      new Date().toISOString().split("T")[0]
-    }.json`,
-  });
-
-  if (!result.canceled && result.filePath) {
-    try {
-      fs.writeFileSync(result.filePath, JSON.stringify(billData, null, 2));
-      return { success: true, filePath: result.filePath };
-    } catch (error) {
-      return { success: false, error: error.message };
+  try {
+    // Remove validation checks - allow saving with any data
+    // Only ensure basic structure exists
+    if (!billData || typeof billData !== 'object') {
+      return { success: false, error: "Invalid data format" };
     }
+
+    const sanitizedBillNumber = (billData.billNumber || "invoice")
+      .replace(/[^a-z0-9]/gi, "_")
+      .toLowerCase();
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      filters: [
+        { name: "PEIPL Bill Files", extensions: ["peiplbill"] },
+        { name: "JSON Files", extensions: ["json"] },
+        { name: "All Files", extensions: ["*"] },
+      ],
+      defaultPath: `bill_${sanitizedBillNumber}_${
+        new Date().toISOString().split("T")[0]
+      }.peiplbill`, // Default to .peiplbill extension
+    });
+
+    if (!result.canceled && result.filePath) {
+      try {
+        // Ensure directory exists
+        const dir = path.dirname(result.filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+
+        // Validate billData before writing
+        if (!billData) {
+          return { success: false, error: "No bill data provided" };
+        }
+
+        // Write file with proper formatting
+        const fileContent = JSON.stringify(billData, null, 2);
+        fs.writeFileSync(result.filePath, fileContent, 'utf8');
+        
+        return { 
+          success: true, 
+          filePath: result.filePath,
+          fileName: path.basename(result.filePath)
+        };
+      } catch (writeError) {
+        console.error("File write error:", writeError);
+        return { success: false, error: `Failed to write file: ${writeError.message}` };
+      }
+    }
+    return { success: false, error: "Save dialog was cancelled" };
+  } catch (error) {
+    console.error("Save dialog error:", error);
+    return { success: false, error: `Save operation failed: ${error.message}` };
   }
-  return { success: false, error: "No file path selected" };
 });
 
 // Handle opening file from command line (manual trigger from renderer)
@@ -1005,6 +1035,7 @@ ipcMain.handle("copy-bill-to-gst-submitted", async (event, sourceFilePath, gstSu
     console.error("Error copying bill to GST submitted folder:", error);
     return { success: false, error: error.message };
   }
+  
 });
 
 // macOS: open-file event

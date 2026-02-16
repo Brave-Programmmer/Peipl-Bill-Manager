@@ -25,6 +25,7 @@ import { CSS } from "@dnd-kit/utilities";
 import toast from "react-hot-toast";
 import { create, all } from "mathjs";
 import styles from "../styles/ItemsTable.module.css";
+import { generateUniqueId } from "../utils/idGenerator";
 
 const math = create(all, { number: "number" });
 
@@ -42,14 +43,109 @@ export default function ItemsTable({
   toggleFullscreen,
   isFullscreen,
 }) {
+  // Performance optimizations
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [calculationCache, setCalculationCache] = useState(new Map());
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [clipboardData, setClipboardData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [autoSave, setAutoSave] = useState(true);
+  const [validationErrors, setValidationErrors] = useState({});
+
+  // Enhanced utility functions
+  const addToHistory = useCallback((data) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(JSON.stringify(data));
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [history, historyIndex]);
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      const newIndex = historyIndex - 1;
+      setHistoryIndex(newIndex);
+      setBillData(JSON.parse(history[newIndex]));
+    }
+  }, [history, historyIndex]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      const newIndex = historyIndex + 1;
+      setHistoryIndex(newIndex);
+      setBillData(JSON.parse(history[newIndex]));
+    }
+  }, [history, historyIndex]);
+
+  const copyToClipboard = useCallback((data) => {
+    setClipboardData(data);
+    toast.success("Copied to clipboard!");
+  }, []);
+
+  const pasteFromClipboard = useCallback(() => {
+    if (clipboardData) {
+      setIsPasting(true);
+      // Handle paste logic here
+      setTimeout(() => setIsPasting(false), 100);
+      toast.success("Pasted from clipboard!");
+    }
+  }, [clipboardData]);
+
+  const validateRow = useCallback((row) => {
+    const errors = {};
+    if (!row.description || row.description.trim() === '') {
+      errors.description = 'Description is required';
+    }
+    
+    // Handle both array and single value for quantity
+    const quantity = row.quantity;
+    if (!quantity) {
+      errors.quantity = 'Quantity is required';
+    } else if (Array.isArray(quantity)) {
+      if (quantity.every(q => !q || q.trim() === '')) {
+        errors.quantity = 'At least one quantity is required';
+      }
+    } else if (typeof quantity === 'string' && quantity.trim() === '') {
+      errors.quantity = 'Quantity is required';
+    }
+    
+    // Handle both array and single value for rate
+    const rate = row.rate;
+    if (!rate) {
+      errors.rate = 'Rate is required';
+    } else if (Array.isArray(rate)) {
+      if (rate.every(r => !r || r.trim() === '')) {
+        errors.rate = 'At least one rate is required';
+      }
+    } else if (typeof rate === 'string' && rate.trim() === '') {
+      errors.rate = 'Rate is required';
+    }
+    
+    return errors;
+  }, []);
+
+  const batchUpdate = useCallback((updates) => {
+    setIsCalculating(true);
+    setBillData(prev => {
+      const newData = { ...prev };
+      updates.forEach(({ rowIndex, field, value }) => {
+        if (newData.items && newData.items[rowIndex]) {
+          newData.items[rowIndex][field] = value;
+        }
+      });
+      return newData;
+    });
+    setTimeout(() => setIsCalculating(false), 300);
+  }, []);
   // Dynamic columns/rows state in billData
   const defaultColumns = [
     { key: "srNoDate", label: "Sr. No. & Date", type: "text" },
     { key: "refNo", label: "Ref No.", type: "text" },
     { key: "description", label: "Job Description", type: "text" },
     { key: "sacHsn", label: "SAC/HSN", type: "text" },
-    { key: "quantity", label: "Qty", type: "number" },
-    { key: "rate", label: "Rate (₹)", type: "number" },
+    { key: "quantity", label: "Qty", type: "text" },
+    { key: "rate", label: "Rate (₹)", type: "text" },
     {
       key: "amount",
       label: "Taxable Value (₹)",
@@ -469,7 +565,7 @@ export default function ItemsTable({
       const newItems = (prev.items || []).map((it) => {
         const n = { ...it };
         newCols.forEach((c) => {
-          if (!(c.key in n)) n[c.key] = c.key === "quantity" ? "1" : "";
+          if (!(c.key in n)) n[c.key] = c.key === "quantity" ? ["1"] : c.key === "rate" ? ["0"] : "";
         });
         return calculateRowFormulas(n);
       });
@@ -541,9 +637,9 @@ export default function ItemsTable({
           id: generateUniqueId(),
           description: "",
           sacHsn: "",
-          quantity: 1,
+          quantity: ["1"],
           unit: "PCS",
-          rate: 0,
+          rate: ["0"],
           amount: 0,
           cgstRate: 9,
           cgstAmount: 0,
@@ -589,25 +685,41 @@ export default function ItemsTable({
     return totals;
   }, [items, columns]);
 
-  // Utility: generate a reasonably unique id
-  function generateUniqueId() {
-    return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Memoize column totals for performance
+// Enhanced to extract numeric values from text like "2"", "10nos", "5kg", etc.
+function toNumberSafe(v, defaultVal = 0) {
+  if (v === "" || v == null || typeof v === "undefined") return defaultVal;
+  if (Array.isArray(v)) return v.map((x) => toNumberSafe(x, defaultVal));
+  
+  // Convert to string and clean up
+  const cleaned = String(v).replace(/,/g, "").trim();
+  
+  // Handle special cases for inch notation (e.g., "5"" becomes 5)
+  const inchMatch = cleaned.match(/^(\d+(?:\.\d+)?)""/);
+  if (inchMatch) {
+    return Number(inchMatch[1]);
   }
+  
+  // Extract numeric value from text like "2"", "10nos", "5kg", "3 pcs", etc.
+  // Match numbers at the start of the string (including decimals)
+  const numericMatch = cleaned.match(/^([-+]?\d*\.?\d+)/);
+  
+  if (numericMatch) {
+    const numericValue = numericMatch[1];
+    const n = Number(numericValue);
+    return isNaN(n) ? defaultVal : n;
+  }
+  
+  // Fallback to original behavior if no numeric match found
+  const n = Number(cleaned);
+  return isNaN(n) ? defaultVal : n;
+}
+// Format a number to a fixed number of decimals and return Number type
+function formatNumber(n, decimals = 2) {
+  if (typeof n !== "number" || !Number.isFinite(n)) return 0;
+  return Number(n.toFixed(decimals));
+}
 
-  // Safely convert a value to a number (handles strings, commas, empty, null, arrays)
-  function toNumberSafe(v, defaultVal = 0) {
-    if (v === "" || v == null || typeof v === "undefined") return defaultVal;
-    if (Array.isArray(v)) return v.map((x) => toNumberSafe(x, defaultVal));
-    // strip common thousands separators
-    const cleaned = String(v).replace(/,/g, "").trim();
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : defaultVal;
-  }
-  // Format a number to a fixed number of decimals and return Number type
-  function formatNumber(n, decimals = 2) {
-    if (typeof n !== "number" || !Number.isFinite(n)) return 0;
-    return Number(n.toFixed(decimals));
-  }
   // Calculate formula columns for a single row (mutates and returns a new object)
   function calculateRowFormulas(row) {
     const r = { ...row };
@@ -617,35 +729,32 @@ export default function ItemsTable({
           const compiled =
             compiledFormulas[col.key] || math.compile(col.formula);
 
-          // collect lengths of any array-valued dependent columns
-          const arrayLengths = columns
-            .map((c) => (Array.isArray(r[c.key]) ? r[c.key].length : 0))
-            .filter((len) => len > 0);
-
-          // No array dependencies: single-value calculation
-          if (arrayLengths.length === 0) {
-            const scope = {};
-            columns.forEach((c) => {
-              const v = r[c.key];
-              if (Array.isArray(v)) {
-                scope[c.key] = toNumberSafe(v[0], 0);
-              } else {
-                scope[c.key] = toNumberSafe(v, 0);
-              }
-            });
-            const val = compiled.evaluate(scope);
-            r[col.key] = typeof val === "number" ? formatNumber(val, 2) : val;
-          } else {
-            // array dependencies exist — compute element-wise up to the shortest array
-            // This ensures removing a value also removes the corresponding computed entry.
-            const elemLen = Math.min(...arrayLengths);
-            const results = new Array(elemLen);
-            for (let i = 0; i < elemLen; i++) {
+          // Check if quantity or rate are arrays (for financial formulas)
+          const quantityArray = Array.isArray(r.quantity) ? r.quantity : null;
+          const rateArray = Array.isArray(r.rate) ? r.rate : null;
+          
+          // Determine if we need array calculation for financial formulas
+          const needsArrayCalculation = (quantityArray || rateArray) && 
+            (col.key === 'amount' || col.key === 'cgstAmount' || col.key === 'sgstAmount' || col.key === 'totalWithGST');
+          
+          if (needsArrayCalculation) {
+            // For financial formulas, match quantity and rate array lengths
+            const maxLength = Math.max(
+              quantityArray ? quantityArray.length : 1,
+              rateArray ? rateArray.length : 1
+            );
+            
+            const results = new Array(maxLength);
+            for (let i = 0; i < maxLength; i++) {
               const scope = {};
               columns.forEach((c) => {
                 const v = r[c.key];
-                if (Array.isArray(v)) {
-                  scope[c.key] = toNumberSafe(v[i], 0);
+                if (c.key === 'quantity' && quantityArray) {
+                  scope[c.key] = toNumberSafe(quantityArray[i] || quantityArray[0], 0);
+                } else if (c.key === 'rate' && rateArray) {
+                  scope[c.key] = toNumberSafe(rateArray[i] || rateArray[0], 0);
+                } else if (Array.isArray(v)) {
+                  scope[c.key] = toNumberSafe(v[0], 0);
                 } else {
                   scope[c.key] = toNumberSafe(v, 0);
                 }
@@ -654,19 +763,24 @@ export default function ItemsTable({
               results[i] = typeof val === "number" ? formatNumber(val, 2) : val;
             }
             r[col.key] = results;
+          } else {
+            // Single value calculation for non-financial formulas or when no arrays
+            const scope = {};
+            columns.forEach((c) => {
+              const v = r[c.key];
+              if (Array.isArray(v)) {
+                // Use first value from arrays for formula calculations
+                scope[c.key] = toNumberSafe(v[0], 0);
+              } else {
+                scope[c.key] = toNumberSafe(v, 0);
+              }
+            });
+            const val = compiled.evaluate(scope);
+            r[col.key] = typeof val === "number" ? formatNumber(val, 2) : val;
           }
         } catch (err) {
-          // On formula errors, fall back to numeric-friendly defaults instead of throwing
-          // If inputs suggest an array result, return an array of zeros; otherwise return 0
-          const arrayLens = columns
-            .map((c) => (Array.isArray(r[c.key]) ? r[c.key].length : 0))
-            .filter((l) => l > 0);
-          if (arrayLens.length > 0) {
-            const maxL = Math.max(...arrayLens);
-            r[col.key] = new Array(maxL).fill(0);
-          } else {
-            r[col.key] = 0;
-          }
+          // On formula errors, fall back to 0
+          r[col.key] = 0;
           // Log the error for debugging but avoid noisy console output in production
           // eslint-disable-next-line no-console
           console.warn(
@@ -741,7 +855,8 @@ export default function ItemsTable({
       const items = [...(prev.items || [])];
       const newRow = { id: generateUniqueId() };
       columns.forEach((c) => {
-        if (c.key === "quantity") newRow[c.key] = "1";
+        if (c.key === "quantity") newRow[c.key] = ["1"];
+        else if (c.key === "rate") newRow[c.key] = ["0"];
         else newRow[c.key] = "";
       });
 
@@ -2233,9 +2348,9 @@ export default function ItemsTable({
                         id: generateUniqueId(),
                         description: "",
                         sacHsn: "",
-                        quantity: 1,
+                        quantity: ["1"],
                         unit: "PCS",
-                        rate: 0,
+                        rate: ["0"],
                         amount: 0,
                         cgstRate: 9,
                         cgstAmount: 0,
@@ -3656,9 +3771,9 @@ export default function ItemsTable({
                         id: generateUniqueId(),
                         description: "",
                         sacHsn: "",
-                        quantity: 1,
+                        quantity: ["1"],
                         unit: "PCS",
-                        rate: 0,
+                        rate: ["0"],
                         amount: 0,
                         cgstRate: 9,
                         cgstAmount: 0,

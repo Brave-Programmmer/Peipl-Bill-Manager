@@ -33,35 +33,7 @@ export default function CredentialManager({
   if (!isVisible) return null;
 
   const handleSave = async () => {
-    // Enhanced validation
-    const validationErrors = [];
-
-    if (!username.trim()) {
-      validationErrors.push("Username is required");
-    }
-    if (!password.trim()) {
-      validationErrors.push("Password is required");
-    }
-    if (!billName.trim()) {
-      validationErrors.push("Bill name is required");
-    }
-
-    // Validate bill data
-    if (!currentBillData?.billNumber?.trim()) {
-      validationErrors.push("Bill number is required");
-    }
-    if (!currentBillData?.customerName?.trim()) {
-      validationErrors.push("Customer name is required");
-    }
-    if (!currentBillData?.items || currentBillData.items.length === 0) {
-      validationErrors.push("At least one item is required");
-    }
-
-    if (validationErrors.length > 0) {
-      setError(validationErrors.join(", "));
-      return;
-    }
-
+    // Remove validation checks - allow saving with any data
     setIsLoading(true);
     setError("");
 
@@ -70,20 +42,20 @@ export default function CredentialManager({
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Calculate totals for the complete bill data
-      const subtotal = currentBillData.items.reduce((sum, item) => {
+      const subtotal = currentBillData.items?.reduce((sum, item) => {
         const amount = parseFloat(item.amount) || 0;
         return sum + amount;
-      }, 0);
+      }, 0) || 0;
 
-      const totalCGST = currentBillData.items.reduce((sum, item) => {
+      const totalCGST = currentBillData.items?.reduce((sum, item) => {
         const cgstAmount = parseFloat(item.cgstAmount) || 0;
         return sum + cgstAmount;
-      }, 0);
+      }, 0) || 0;
 
-      const totalSGST = currentBillData.items.reduce((sum, item) => {
+      const totalSGST = currentBillData.items?.reduce((sum, item) => {
         const sgstAmount = parseFloat(item.sgstAmount) || 0;
         return sum + sgstAmount;
-      }, 0);
+      }, 0) || 0;
 
       const total = subtotal + totalCGST + totalSGST;
 
@@ -203,9 +175,26 @@ export default function CredentialManager({
 
       // Keep only last 50 bills to prevent localStorage overflow
       const trimmedBills = savedBills.slice(-50);
-      localStorage.setItem("savedBills", JSON.stringify(trimmedBills));
+      
+      try {
+        localStorage.setItem("savedBills", JSON.stringify(trimmedBills));
+      } catch (storageError) {
+        console.error("LocalStorage error:", storageError);
+        setError("Storage quota exceeded. Please clear some saved bills.");
+        setIsLoading(false);
+        return;
+      }
 
-      onSave(billDataForSave);
+      // Call parent save handler
+      if (onSave && typeof onSave === 'function') {
+        onSave(billDataForSave);
+      } else {
+        console.error("onSave handler is not available");
+        setError("Save handler not available. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+      
       onClose();
 
       // Reset form
@@ -214,7 +203,7 @@ export default function CredentialManager({
       setBillName("");
     } catch (err) {
       console.error("Error saving bill:", err);
-      setError("Failed to save bill. Please try again.");
+      setError(`Failed to save bill: ${err.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }

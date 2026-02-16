@@ -24,7 +24,7 @@ export default function AIAssistant({
     {
       role: "assistant",
       content:
-        "👋 Hello! I'm Phoenix, your intelligent billing assistant! I can help you with:\n\n• Creating and managing bills\n• Saving and opening files\n• Printing invoices\n• Calculations and GST\n• Troubleshooting issues\n• Keyboard shortcuts\n\nI can also perform tasks for you - just ask!\n\nWhat would you like to know or do?",
+        "� **Welcome to Phoenix AI - Your Enhanced Billing Assistant!**\n\nI can help you with:\n\n💼 **Bill Management:**\n• Create professional bills instantly\n• Save and organize bills\n• Generate PDF invoices\n• Track bill history\n\n🧮 **Smart Calculations:**\n• GST calculations (CGST/SGST)\n• Multi-quantity support\n• Rate optimizations\n• Tax compliance\n\n🔧 **Advanced Features:**\n• Voice commands (coming soon)\n• Batch operations\n• Custom templates\n• Export to multiple formats\n\n⌨️ **Quick Actions:**\n• Type `save` to save current bill\n• Type `generate` to create PDF\n• Type `help` for more commands\n• Type `template` to use templates\n\n**What would you like to accomplish today?**",
       timestamp: new Date().toISOString(),
       isWelcome: true,
     },
@@ -35,7 +35,13 @@ export default function AIAssistant({
     currentTopic: null,
     userIntentions: [],
     previousQuestions: [],
+    lastAction: null,
+    billContext: {},
   });
+  const [suggestions, setSuggestions] = useState([]);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [shortcuts, setShortcuts] = useState([]);
+  const [learningMode, setLearningMode] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Topic detection functions

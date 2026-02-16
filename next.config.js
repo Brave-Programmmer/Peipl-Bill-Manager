@@ -46,7 +46,7 @@ const nextConfig = {
           // Utilities chunks
           utils: {
             name: "chunk-utils",
-            test: /[\\/]node_modules[\\/](jspdf|html2canvas|mathjs|puppeteer)[\\/]/,
+            test: /[\\/]node_modules[\\/](jspdf|html2canvas|mathjs)[\\/]/,
             priority: 20,
             reuseExistingChunk: true,
             enforce: true,

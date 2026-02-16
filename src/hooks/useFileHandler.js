@@ -127,36 +127,15 @@ export function useFileHandler({
   }, [handleLoadBillData]);
 
   const handleSaveBillFile = useCallback(async (completeBillData) => {
-    try {
-      if (window.electronAPI) {
-        // Desktop app - use native file dialog
-        const result = await window.electronAPI.saveFile(completeBillData);
-        if (result.success) {
-          toast.success(`Bill saved successfully to: ${result.filePath}`);
-        } else {
-          toast.error(`Error saving bill: ${result.error}`);
-        }
-      } else {
-        // Web browser - use download
-        const blob = new Blob([JSON.stringify(completeBillData, null, 2)], {
-          type: "application/json",
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `bill_${completeBillData.billNumber || "invoice"}_${new Date()
-          .toISOString()
-          .slice(0, 10)}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        toast.success("Bill downloaded successfully!");
-      }
-    } catch (error) {
-      console.error("Error saving bill file:", error);
-      toast.error("Error saving bill file. Please try again.");
+    // Delegate to the main save handler in page.js
+    // This prevents duplicate save logic and race conditions
+    if (window.electronAPI) {
+      // Trigger the main save handler via event
+      window.dispatchEvent(new CustomEvent('save-bill-request', { 
+        detail: completeBillData 
+      }));
     }
+    return { success: true };
   }, []);
 
   // Drag and Drop handlers

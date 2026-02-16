@@ -1,31 +1,49 @@
-"use client";
-
 import { useState, useEffect } from "react";
 
 async function realAppLoading() {
-  await new Promise((resolve) => {
+  return new Promise((resolve) => {
     const img = new window.Image();
     img.src = "./logo.png";
     img.onload = resolve;
     img.onerror = resolve;
   });
-
-  if (document.fonts?.ready) {
-    await document.fonts.ready;
-  }
 }
 
 export default function SplashScreen({ onComplete }) {
   const [show, setShow] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingTip, setLoadingTip] = useState("Initializing application...");
 
   useEffect(() => {
-    setTimeout(() => setShow(true), 300);
+    setShow(true);
+    
+    // Simulate loading steps with progress
+    const loadingSteps = [
+      { progress: 20, tip: "Loading components..." },
+      { progress: 40, tip: "Preparing workspace..." },
+      { progress: 60, tip: "Loading templates..." },
+      { progress: 80, tip: "Finalizing setup..." },
+      { progress: 100, tip: "Ready to launch!" }
+    ];
 
-    realAppLoading().then(() => {
-      setLoaded(true);
-      setTimeout(() => onComplete?.(), 900);
-    });
+    let currentStep = 0;
+    const interval = setInterval(() => {
+      if (currentStep < loadingSteps.length) {
+        const step = loadingSteps[currentStep];
+        setLoadingProgress(step.progress);
+        setLoadingTip(step.tip);
+        currentStep++;
+      } else {
+        clearInterval(interval);
+        realAppLoading().then(() => {
+          setLoaded(true);
+          setTimeout(onComplete, 800);
+        });
+      }
+    }, 300);
+
+    return () => clearInterval(interval);
   }, [onComplete]);
 
   return (
@@ -56,30 +74,33 @@ export default function SplashScreen({ onComplete }) {
           India Pvt. Ltd.
         </p>
 
-        {/* Loading indicator */}
-        <div className="mt-8 flex items-center gap-2">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-          </span>
-          <span className="text-sm text-gray-500">
-            {loaded ? "Launching…" : "Loading resources…"}
-          </span>
+        {/* Loading Progress Bar */}
+        <div className="mt-8 w-64">
+          <div className="flex justify-between text-xs text-gray-500 mb-2">
+            <span>{loadingTip}</span>
+            <span>{loadingProgress}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Loading Status */}
+        <div className="mt-6 flex items-center justify-center">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+            </span>
+            <span className="text-sm text-gray-500">
+              {loaded ? "Launched!" : "Loading resources…"}
+            </span>
+          </div>
         </div>
       </div>
-
-      {/* Floating animation */}
-      <style jsx>{`
-        @keyframes float {
-          0%,
-          100% {
-            transform: translateY(0);
-          }
-          50% {
-            transform: translateY(-10px);
-          }
-        }
-      `}</style>
     </div>
   );
 }
