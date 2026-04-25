@@ -93,16 +93,15 @@ export const billTrackerReducer = (state, action) => {
     case "SET_SELECTED_SUBFOLDERS":
       return { ...state, selectedSubfolders: new Set(action.payload) };
 
-    case "TOGGLE_SUBFOLDER":
-      {
-        const updated = new Set(state.selectedSubfolders);
-        if (updated.has(action.payload)) {
-          updated.delete(action.payload);
-        } else {
-          updated.add(action.payload);
-        }
-        return { ...state, selectedSubfolders: updated };
+    case "TOGGLE_SUBFOLDER": {
+      const updated = new Set(state.selectedSubfolders);
+      if (updated.has(action.payload)) {
+        updated.delete(action.payload);
+      } else {
+        updated.add(action.payload);
       }
+      return { ...state, selectedSubfolders: updated };
+    }
 
     case "SELECT_ALL_SUBFOLDERS":
       return {
@@ -116,30 +115,28 @@ export const billTrackerReducer = (state, action) => {
     case "SET_IGNORED_SUBFOLDERS":
       return { ...state, ignoredSubfolders: new Set(action.payload) };
 
-    case "TOGGLE_IGNORED_SUBFOLDER":
-      {
-        const ignored = new Set(state.ignoredSubfolders);
-        if (ignored.has(action.payload)) {
-          ignored.delete(action.payload);
-        } else {
-          ignored.add(action.payload);
-        }
-        return { ...state, ignoredSubfolders: ignored };
+    case "TOGGLE_IGNORED_SUBFOLDER": {
+      const ignored = new Set(state.ignoredSubfolders);
+      if (ignored.has(action.payload)) {
+        ignored.delete(action.payload);
+      } else {
+        ignored.add(action.payload);
       }
+      return { ...state, ignoredSubfolders: ignored };
+    }
 
     case "SET_IGNORED_FILES":
       return { ...state, ignoredFiles: new Set(action.payload) };
 
-    case "TOGGLE_IGNORED_FILE":
-      {
-        const ignored = new Set(state.ignoredFiles);
-        if (ignored.has(action.payload)) {
-          ignored.delete(action.payload);
-        } else {
-          ignored.add(action.payload);
-        }
-        return { ...state, ignoredFiles: ignored };
+    case "TOGGLE_IGNORED_FILE": {
+      const ignored = new Set(state.ignoredFiles);
+      if (ignored.has(action.payload)) {
+        ignored.delete(action.payload);
+      } else {
+        ignored.add(action.payload);
       }
+      return { ...state, ignoredFiles: ignored };
+    }
 
     case "SET_GST_SUBMITTED_FOLDER":
       return { ...state, gstSubmittedFolder: action.payload };
@@ -197,16 +194,15 @@ export const billTrackerReducer = (state, action) => {
     case "SET_SELECTED_FILES":
       return { ...state, selectedFiles: new Set(action.payload) };
 
-    case "TOGGLE_FILE_SELECTION":
-      {
-        const selected = new Set(state.selectedFiles);
-        if (selected.has(action.payload)) {
-          selected.delete(action.payload);
-        } else {
-          selected.add(action.payload);
-        }
-        return { ...state, selectedFiles: selected };
+    case "TOGGLE_FILE_SELECTION": {
+      const selected = new Set(state.selectedFiles);
+      if (selected.has(action.payload)) {
+        selected.delete(action.payload);
+      } else {
+        selected.add(action.payload);
       }
+      return { ...state, selectedFiles: selected };
+    }
 
     case "SELECT_ALL_FILES":
       return {

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, memo, useCallback } from "react";
 import dynamic from "next/dynamic";
+import { sumCell } from "../utils/billCalculations";
 import {
   FiSend,
   FiX,
@@ -9,6 +10,10 @@ import {
   FiUser,
   FiZap,
 } from "react-icons/fi";
+import {
+  generateBillSuggestions,
+  calculateBillQualityScore,
+} from "../utils/billOptimization";
 
 export default function AIAssistant({
   onSaveBill,
@@ -24,7 +29,11 @@ export default function AIAssistant({
     {
       role: "assistant",
       content:
-        "� **Welcome to Phoenix AI - Your Enhanced Billing Assistant!**\n\nI can help you with:\n\n💼 **Bill Management:**\n• Create professional bills instantly\n• Save and organize bills\n• Generate PDF invoices\n• Track bill history\n\n🧮 **Smart Calculations:**\n• GST calculations (CGST/SGST)\n• Multi-quantity support\n• Rate optimizations\n• Tax compliance\n\n🔧 **Advanced Features:**\n• Voice commands (coming soon)\n• Batch operations\n• Custom templates\n• Export to multiple formats\n\n⌨️ **Quick Actions:**\n• Type `save` to save current bill\n• Type `generate` to create PDF\n• Type `help` for more commands\n• Type `template` to use templates\n\n**What would you like to accomplish today?**",
+        "🤖 **Welcome to Phoenix AI - Your Intelligent Billing Assistant!**\n\nI can help you with:\n\n� **Bill Analysis & Validation:**\n• Analyze current bill for errors and optimizations\n• GST compliance checking\n• Calculation verification\n• Professional formatting suggestions\n\n💼 **Smart Bill Management:**\n• Save and organize bills efficiently\n• Generate professional PDF invoices\n• Track bill history and patterns\n• Batch operations support\n\n🧮 **Advanced Calculations:**\n• GST calculations (CGST/SGST/IGST)\n• Multi-quantity and rate optimizations\n• Tax compliance and best practices\n• Cost-saving recommendations\n\n🎯 **Context-Aware Assistance:**\n• Real-time bill analysis based on your data\n• Personalized suggestions for your business\n• Automated error detection and fixes\n• Industry-specific recommendations\n\n⚡ **Quick Actions:**\n• Type `analyze` to validate current bill\n• Type `save` to save your bill\n• Type `generate` to create PDF\n• Type `optimize` for cost-saving tips\n• Type `help` for all commands\n\n**Current Bill Context:** " +
+        (billData?.items?.length > 0
+          ? `📋 ${billData.items.length} items, Total: ₹${billData.total || 0}`
+          : "📝 No bill data loaded yet") +
+        "\n\n**What would you like to accomplish today?**",
       timestamp: new Date().toISOString(),
       isWelcome: true,
     },
@@ -39,10 +48,60 @@ export default function AIAssistant({
     billContext: {},
   });
   const [suggestions, setSuggestions] = useState([]);
-  const [voiceEnabled, setVoiceEnabled] = useState(false);
-  const [shortcuts, setShortcuts] = useState([]);
-  const [learningMode, setLearningMode] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Generate context-aware suggestions
+  useEffect(() => {
+    const generateSuggestions = () => {
+      const baseSuggestions = [
+        "Analyze current bill",
+        "Save this bill",
+        "Generate PDF",
+        "GST help",
+        "Optimize costs",
+      ];
+
+      // Context-aware suggestions based on bill data
+      if (billData?.items?.length > 0) {
+        const itemCount = billData.items.length;
+        const total = billData.total || 0;
+
+        if (itemCount > 10) {
+          baseSuggestions.push("Split large bill");
+        }
+
+        if (total > 100000) {
+          baseSuggestions.push("High-value bill tips");
+        }
+
+        if (!billData.customerGST && total > 50000) {
+          baseSuggestions.push("Add GST details");
+        }
+
+        // Check for potential issues
+        const hasEmptyFields = billData.items.some(
+          (item) => !item.description || !item.quantity || !item.rate,
+        );
+
+        if (hasEmptyFields) {
+          baseSuggestions.unshift("Fix incomplete items");
+        }
+      } else {
+        baseSuggestions.unshift("Create new bill");
+      }
+
+      // Company context
+      if (companyInfo?.name) {
+        baseSuggestions.push("Update company info");
+      } else {
+        baseSuggestions.unshift("Set up company details");
+      }
+
+      setSuggestions(baseSuggestions.slice(0, 6)); // Limit to 6 suggestions
+    };
+
+    generateSuggestions();
+  }, [billData, companyInfo]);
 
   // Topic detection functions
   const detectTopic = (message) => {
@@ -89,6 +148,16 @@ export default function AIAssistant({
         "configure",
       ],
       billing: ["bill", "invoice", "customer", "date", "number"],
+      optimization: [
+        "optimize",
+        "improve",
+        "better",
+        "suggestion",
+        "quality",
+        "score",
+        "check",
+        "review",
+      ],
       customer: ["customer", "client", "recipient", "buyer", "name", "address"],
     };
 
@@ -105,6 +174,60 @@ export default function AIAssistant({
     );
 
     return maxTopic[1] > 0 ? maxTopic[0] : "general";
+  };
+
+  // Generate bill optimization suggestions
+  const generateOptimizationResponse = useCallback(() => {
+    if (!billData || !billData.items) {
+      return "📝 **No bill data available**\n\nPlease create or load a bill to get optimization suggestions.";
+    }
+
+    const suggestions = generateBillSuggestions(billData, companyInfo);
+    const qualityScore = calculateBillQualityScore(billData, companyInfo);
+
+    let response = `📊 **Bill Analysis & Optimization**\n\n`;
+    response += `**Quality Score:** ${qualityScore}/100 ${getQualityEmoji(qualityScore)}\n\n`;
+
+    if (suggestions.suggestions.length > 0) {
+      response += `💡 **Suggestions:**\n`;
+      suggestions.suggestions.forEach((suggestion, index) => {
+        response += `${index + 1}. ${suggestion}\n`;
+      });
+      response += "\n";
+    }
+
+    if (suggestions.warnings.length > 0) {
+      response += `⚠️ **Warnings:**\n`;
+      suggestions.warnings.forEach((warning, index) => {
+        response += `${index + 1}. ${warning}\n`;
+      });
+      response += "\n";
+    }
+
+    if (suggestions.optimizations.length > 0) {
+      response += `🚀 **Optimizations:**\n`;
+      suggestions.optimizations.forEach((optimization, index) => {
+        response += `${index + 1}. ${optimization}\n`;
+      });
+    }
+
+    if (
+      suggestions.suggestions.length === 0 &&
+      suggestions.warnings.length === 0 &&
+      suggestions.optimizations.length === 0
+    ) {
+      response +=
+        "✅ **Great job!** Your bill looks well-structured and complete.";
+    }
+
+    return response;
+  }, [billData, companyInfo]);
+
+  const getQualityEmoji = (score) => {
+    if (score >= 90) return "🌟";
+    if (score >= 70) return "✅";
+    if (score >= 50) return "⚠️";
+    return "❌";
   };
 
   const detectIntent = (message) => {
@@ -167,28 +290,70 @@ export default function AIAssistant({
     setIsTyping(true);
 
     try {
-      // If the user asks about analysis, call server-side Phoenix analyze API
+      // If the user asks about analysis or optimization, call server-side Phoenix analyze API
       const lower = input.toLowerCase();
-      const triggerKeywords = ["analyze"];
+      const triggerKeywords = [
+        "analyze",
+        "optimize",
+        "improve",
+        "check",
+        "review",
+        "suggestion",
+      ];
       const shouldCallServer = triggerKeywords.some((k) => lower.includes(k));
+
+      // Check for optimization request
+      const optimizationKeywords = [
+        "optimize",
+        "improve",
+        "better",
+        "suggestion",
+        "quality",
+        "score",
+      ];
+      const isOptimizationRequest = optimizationKeywords.some((k) =>
+        lower.includes(k),
+      );
+
+      if (isOptimizationRequest && !shouldCallServer) {
+        // Handle local optimization
+        const optimizationResponse = generateOptimizationResponse();
+        const assistantMessage = {
+          role: "assistant",
+          content: optimizationResponse,
+          timestamp: new Date().toISOString(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+        setIsTyping(false);
+        return;
+      }
 
       if (shouldCallServer) {
         try {
-          // send metadata with analysis request
+          // Enhanced metadata with more comprehensive bill information
           const analyzeMeta = {
             invoiceNo: billData?.billNumber || "",
             subtotal:
               typeof billData === "object" && billData.items
-                ? billData.items.reduce(
-                    (s, i) => s + (parseFloat(i.amount) || 0),
-                    0,
-                  )
+                ? billData.items.reduce((s, i) => s + sumCell(i.amount), 0)
                 : undefined,
             grandTotal:
               typeof billData === "object"
                 ? billData.total || undefined
                 : undefined,
             gstin: companyInfo?.gst || billData?.customerGST || undefined,
+            customerName:
+              billData?.customerName || companyInfo?.name || undefined,
+            invoiceDate: billData?.date || billData?.billDate || undefined,
+            items:
+              billData?.items?.map((item) => ({
+                description: item.description,
+                quantity: item.quantity,
+                rate: item.rate,
+                gst: item.gst,
+                amount: item.amount,
+              })) || [],
             pdfPath: pdfPath || undefined,
           };
 
@@ -202,16 +367,40 @@ export default function AIAssistant({
             }),
           });
           const data = await resp.json();
-          const responseText =
+
+          // Enhanced response display with metadata
+          let responseText =
             data?.reply || data?.error || "No analysis available";
-          setMessages((prev) => [
-            ...prev,
-            {
-              role: "assistant",
-              content: responseText,
-              timestamp: new Date().toISOString(),
+
+          // Add provider info if available
+          if (data.provider && !data.fallback) {
+            responseText += `\n\n---\n🤖 **AI Provider:** ${data.provider}${data.processingTime ? ` (${data.processingTime}ms)` : ""}`;
+          }
+
+          // Add enhanced metadata insights
+          if (data.enhanced) {
+            const meta = data.enhanced;
+            if (meta.isHighValue || meta.isVeryHighValue) {
+              responseText += `\n⚠️ **Risk Level:** ${meta.isVeryHighValue ? "Very High" : "High"} Value Bill`;
+            }
+            if (meta.gstinValid !== undefined) {
+              responseText += `\n🔍 **GSTIN:** ${meta.gstinValid ? "✅ Valid" : "❌ Invalid"} Format`;
+            }
+          }
+
+          const assistantMessage = {
+            role: "assistant",
+            content: responseText,
+            timestamp: new Date().toISOString(),
+            metadata: {
+              provider: data.provider,
+              fallback: data.fallback,
+              processingTime: data.processingTime,
+              enhanced: data.enhanced,
             },
-          ]);
+          };
+
+          setMessages((prev) => [...prev, assistantMessage]);
           setIsTyping(false);
           return;
         } catch (err) {
@@ -482,160 +671,201 @@ export default function AIAssistant({
     }
   };
 
-  // Enhanced quick action buttons with context awareness
+  // Enhanced quick action buttons with context awareness and new features
   const getQuickActions = () => {
     const baseActions = [
+      { text: "Analyze bill", prompt: "analyze this bill" },
       { text: "Save my bill", prompt: "save my bill" },
       { text: "Open a bill", prompt: "open a bill" },
       { text: "Generate bill", prompt: "generate bill" },
-      { text: "Show manual", prompt: "show manual" },
     ];
 
-    // Add context-specific actions
+    // Add context-specific actions based on bill data
+    if (billData?.items?.length > 0) {
+      const total = billData.total || 0;
+
+      if (total > 100000) {
+        baseActions.push({
+          text: "High value check",
+          prompt: "Check compliance for high value bill",
+        });
+      }
+
+      if (!billData.customerGST && total > 50000) {
+        baseActions.push({
+          text: "GST compliance",
+          prompt: "Check GST compliance requirements",
+        });
+      }
+
+      // Add validation action
+      baseActions.push({
+        text: "Quick validate",
+        prompt: "Quick validation check",
+      });
+    }
+
+    // Company context actions
+    if (companyInfo?.name) {
+      if (!companyInfo.gst) {
+        baseActions.push({
+          text: "Setup GST",
+          prompt: "How to add GST details to company info",
+        });
+      }
+    } else {
+      baseActions.unshift({
+        text: "Setup company",
+        prompt: "Set up company details",
+      });
+    }
+
+    // Add conversation context actions
     if (conversationContext.currentTopic === "calculations") {
       baseActions.push({
         text: "GST rates",
-        prompt: "What are the GST rates?",
+        prompt: "What are the GST rates and when to apply them?",
       });
     }
     if (conversationContext.currentTopic === "files") {
       baseActions.push({
         text: "File formats",
-        prompt: "What file formats can I save as?",
+        prompt: "What file formats are supported for saving bills?",
       });
     }
     if (conversationContext.currentTopic === "printing") {
       baseActions.push({
         text: "Print settings",
-        prompt: "What print settings should I use?",
+        prompt: "What are the recommended print settings?",
       });
     }
 
-    return baseActions.slice(0, 4); // Limit to 4 actions
+    return baseActions.slice(0, 6); // Limit to 6 actions for better UX
   };
 
   return (
     <div className="fixed bottom-6 right-6 z-50">
-      {isOpen ? (
-        <div className="w-96 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col h-[600px] border border-gray-200 animate-fade-in">
-          {/* Enhanced Header */}
-          <div className="bg-gradient-to-r from-[#019b98] to-[#136664] text-white p-4 flex justify-between items-center">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-                <FiZap className="text-white text-xl" />
-              </div>
-              <div>
-                <h3 className="font-bold text-lg">Phoenix AI</h3>
-                <p className="text-white/80 text-sm">Billing assistant</p>
-              </div>
-            </div>
-            <button
-              onClick={() => setIsOpen(false)}
-              className="p-2 rounded-full hover:bg-white/20 transition-colors"
-              aria-label="Close assistant"
-            >
-              <FiX className="text-white" />
-            </button>
-          </div>
-
-          {/* Messages with enhanced styling */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-[85%] p-4 rounded-lg ${
-                    message.role === "user"
-                      ? "bg-[#019b98] text-white rounded-br-none"
-                      : message.isError
-                        ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-none"
-                        : message.isWelcome
-                          ? "bg-blue-50 border border-blue-200 text-blue-800 rounded-bl-none"
-                          : "bg-white border border-gray-200 rounded-bl-none shadow-sm"
-                  }`}
-                >
-                  <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {message.content}
-                  </div>
-                  <div className="text-xs mt-1 opacity-60 text-right">
-                    {new Date(message.timestamp).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
+      {isOpen
+        ? <div className="w-96 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col h-[600px] border border-gray-200 animate-fade-in">
+            {/* Enhanced Header */}
+            <div className="bg-gradient-to-r from-[#019b98] to-[#136664] text-white p-4 flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                  <FiZap className="text-white text-xl" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Phoenix AI</h3>
+                  <p className="text-white/80 text-sm">Billing assistant</p>
                 </div>
               </div>
-            ))}
-            {isTyping && (
-              <div className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 w-fit">
-                <div className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"></div>
-                <div
-                  className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                ></div>
-                <div
-                  className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                ></div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Enhanced Quick Actions */}
-          <div className="px-4 pt-3 pb-2 border-t border-gray-200 bg-white">
-            <div className="flex flex-wrap gap-2 mb-2">
-              {getQuickActions().map((action, index) => (
-                <button
-                  key={index}
-                  onClick={() => setInput(action.prompt)}
-                  className="text-xs bg-gradient-to-r from-[#019b98]/10 to-[#136664]/10 hover:from-[#019b98]/20 hover:to-[#136664]/20 text-[#019b98] px-3 py-2 rounded-full transition-all duration-200 border border-[#019b98]/20"
-                >
-                  {action.text}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Enhanced Input */}
-          <form
-            onSubmit={handleSendMessage}
-            className="p-4 border-t border-gray-200 bg-white"
-          >
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask me anything about billing..."
-                className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent transition-all"
-                disabled={isTyping}
-              />
               <button
-                type="submit"
-                disabled={!input.trim() || isTyping}
-                className="bg-[#019b98] text-white p-2 rounded-lg hover:bg-[#017a77] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                onClick={() => setIsOpen(false)}
+                className="p-2 rounded-full hover:bg-white/20 transition-colors"
+                aria-label="Close assistant"
               >
-                {isTyping ? <FiLoader className="animate-spin" /> : <FiSend />}
+                <FiX className="text-white" />
               </button>
             </div>
-            <div className="text-xs text-gray-500 mt-2 text-center">
-              💡 Try asking "Phoenix, save my bill" or "Phoenix, generate my
-              bill" or "How to add GST?"
+
+            {/* Messages with enhanced styling */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+              {messages.map((message, index) => (
+                <div
+                  key={index}
+                  className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                >
+                  <div
+                    className={`max-w-[85%] p-4 rounded-lg ${
+                      message.role === "user"
+                        ? "bg-[#019b98] text-white rounded-br-none"
+                        : message.isError
+                          ? "bg-red-50 border border-red-200 text-red-800 rounded-bl-none"
+                          : message.isWelcome
+                            ? "bg-blue-50 border border-blue-200 text-blue-800 rounded-bl-none"
+                            : "bg-white border border-gray-200 rounded-bl-none shadow-sm"
+                    }`}
+                  >
+                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {message.content}
+                    </div>
+                    <div className="text-xs mt-1 opacity-60 text-right">
+                      {new Date(message.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {isTyping && (
+                <div className="flex items-center space-x-2 p-3 bg-white rounded-lg border border-gray-200 w-fit">
+                  <div className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"></div>
+                  <div
+                    className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
+                    style={{ animationDelay: "150ms" }}
+                  ></div>
+                  <div
+                    className="w-2 h-2 bg-[#019b98] rounded-full animate-bounce"
+                    style={{ animationDelay: "300ms" }}
+                  ></div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
             </div>
-          </form>
-        </div>
-      ) : (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="w-14 h-14 bg-[#019b98] text-white rounded-full shadow-lg hover:bg-[#017a77] transition-all duration-300 flex items-center justify-center hover:scale-110"
-          aria-label="Open AI Assistant"
-        >
-          <FiMessageCircle size={24} />
-        </button>
-      )}
+
+            {/* Enhanced Quick Actions */}
+            <div className="px-4 pt-3 pb-2 border-t border-gray-200 bg-white">
+              <div className="flex flex-wrap gap-2 mb-2">
+                {getQuickActions().map((action, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setInput(action.prompt)}
+                    className="text-xs bg-gradient-to-r from-[#019b98]/10 to-[#136664]/10 hover:from-[#019b98]/20 hover:to-[#136664]/20 text-[#019b98] px-3 py-2 rounded-full transition-all duration-200 border border-[#019b98]/20"
+                  >
+                    {action.text}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Enhanced Input */}
+            <form
+              onSubmit={handleSendMessage}
+              className="p-4 border-t border-gray-200 bg-white"
+            >
+              <div className="flex space-x-2">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask me anything about billing..."
+                  className="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent transition-all"
+                  disabled={isTyping}
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isTyping}
+                  className="bg-[#019b98] text-white p-2 rounded-lg hover:bg-[#017a77] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center"
+                >
+                  {isTyping
+                    ? <FiLoader className="animate-spin" />
+                    : <FiSend />}
+                </button>
+              </div>
+              <div className="text-xs text-gray-500 mt-2 text-center">
+                &#x1F4A1; Try asking &ldquo;Phoenix, save my bill&rdquo; or
+                &ldquo;Phoenix, generate my bill&rdquo; or &ldquo;How to add
+                GST?&rdquo;
+              </div>
+            </form>
+          </div>
+        : <button
+            onClick={() => setIsOpen(true)}
+            className="w-14 h-14 bg-[#019b98] text-white rounded-full shadow-lg hover:bg-[#017a77] transition-all duration-300 flex items-center justify-center hover:scale-110"
+            aria-label="Open AI Assistant"
+          >
+            <FiMessageCircle size={24} />
+          </button>}
     </div>
   );
 }

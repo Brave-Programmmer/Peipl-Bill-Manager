@@ -139,9 +139,12 @@ export const getFinancialYear = (dateString) => {
  * @param {string|Date} fileModifiedDate - File modified date
  * @returns {string} Month in YYYY-MM format
  */
-export const getBillMonth = (fileCreatedDate = null, fileModifiedDate = null) => {
+export const getBillMonth = (
+  fileCreatedDate = null,
+  fileModifiedDate = null,
+) => {
   const dateToUse = fileCreatedDate || fileModifiedDate;
-  
+
   if (dateToUse) {
     try {
       const date = new Date(dateToUse);
@@ -271,7 +274,8 @@ export const validateFileSize = (value, otherSize = null, type = "min") => {
 
   if (
     otherSize !== null &&
-    ((type === "min" && bytes > otherSize) || (type === "max" && bytes < otherSize))
+    ((type === "min" && bytes > otherSize) ||
+      (type === "max" && bytes < otherSize))
   ) {
     return {
       isValid: false,
@@ -356,7 +360,10 @@ export const getFileNameWithoutExt = (fileName) => {
  * @param {array} allowedTypes - Allowed file extensions
  * @returns {boolean} True if file type is allowed
  */
-export const isFileTypeAllowed = (fileName, allowedTypes = ["pdf", "jpg", "png", "xlsx"]) => {
+export const isFileTypeAllowed = (
+  fileName,
+  allowedTypes = ["pdf", "jpg", "png", "xlsx"],
+) => {
   const ext = getFileExtension(fileName).toLowerCase();
   return allowedTypes.includes(ext);
 };
@@ -396,7 +403,9 @@ export const generateUniqueId = () => {
 export const isSameMonth = (date1, date2) => {
   const d1 = new Date(date1);
   const d2 = new Date(date2);
-  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth();
+  return (
+    d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth()
+  );
 };
 
 /**
@@ -425,7 +434,8 @@ export const getBillStatusSummary = (trackingData = {}) => {
     pending,
     overdue,
     total: sent + pending,
-    sentPercentage: sent + pending > 0 ? Math.round((sent / (sent + pending)) * 100) : 0,
+    sentPercentage:
+      sent + pending > 0 ? Math.round((sent / (sent + pending)) * 100) : 0,
   };
 };
 
@@ -437,7 +447,11 @@ export const getBillStatusSummary = (trackingData = {}) => {
 export const isOverdue = (billMonth) => {
   if (!billMonth) return false;
   const billDate = new Date(billMonth);
-  const submissionDeadline = new Date(billDate.getFullYear(), billDate.getMonth() + 1, 15);
+  const submissionDeadline = new Date(
+    billDate.getFullYear(),
+    billDate.getMonth() + 1,
+    15,
+  );
   return new Date() > submissionDeadline;
 };
 

@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from "react";
 import LoadingSpinner from "./LoadingSpinner";
+import toast from "react-hot-toast";
+import {
+  calculateSubtotal,
+  calculateTotalCGST,
+  calculateTotalSGST,
+} from "../utils/billCalculations";
 
 export default function CredentialManager({
   isVisible,
@@ -17,14 +23,36 @@ export default function CredentialManager({
   const [error, setError] = useState("");
   const [currentBillData, setCurrentBillData] = useState(billData);
 
+  const subtotal = calculateSubtotal(currentBillData?.items || []);
+  const totalCGST = calculateTotalCGST(currentBillData?.items || []);
+  const totalSGST = calculateTotalSGST(currentBillData?.items || []);
+  const total = subtotal + totalCGST + totalSGST;
+
   useEffect(() => {
     if (isVisible) {
       // Check if there's temporary bill data from the bill generator
-      const tempBillData = localStorage.getItem("tempBillData");
-      if (tempBillData) {
-        setCurrentBillData(JSON.parse(tempBillData));
-        localStorage.removeItem("tempBillData"); // Clean up
-      } else {
+      try {
+        const tempBillData = localStorage.getItem("tempBillData");
+        if (tempBillData) {
+          try {
+            setCurrentBillData(JSON.parse(tempBillData));
+          } catch (parseError) {
+            console.error("Error parsing tempBillData:", parseError);
+            setCurrentBillData(billData);
+          }
+          try {
+            localStorage.removeItem("tempBillData"); // Clean up
+          } catch (removeError) {
+            console.error("Error removing tempBillData:", removeError);
+          }
+        } else {
+          setCurrentBillData(billData);
+        }
+      } catch (storageError) {
+        console.error(
+          "Error accessing localStorage for tempBillData:",
+          storageError,
+        );
         setCurrentBillData(billData);
       }
     }
@@ -42,20 +70,9 @@ export default function CredentialManager({
       await new Promise((resolve) => setTimeout(resolve, 1500));
 
       // Calculate totals for the complete bill data
-      const subtotal = currentBillData.items?.reduce((sum, item) => {
-        const amount = parseFloat(item.amount) || 0;
-        return sum + amount;
-      }, 0) || 0;
-
-      const totalCGST = currentBillData.items?.reduce((sum, item) => {
-        const cgstAmount = parseFloat(item.cgstAmount) || 0;
-        return sum + cgstAmount;
-      }, 0) || 0;
-
-      const totalSGST = currentBillData.items?.reduce((sum, item) => {
-        const sgstAmount = parseFloat(item.sgstAmount) || 0;
-        return sum + sgstAmount;
-      }, 0) || 0;
+      const subtotal = calculateSubtotal(currentBillData.items);
+      const totalCGST = calculateTotalCGST(currentBillData.items);
+      const totalSGST = calculateTotalSGST(currentBillData.items);
 
       const total = subtotal + totalCGST + totalSGST;
 
@@ -159,7 +176,32 @@ export default function CredentialManager({
       };
 
       // Save to localStorage (in real app, this would be an API call)
-      const savedBills = JSON.parse(localStorage.getItem("savedBills") || "[]");
+      let savedBills = [];
+      try {
+        const savedBillsData = localStorage.getItem("savedBills");
+        if (savedBillsData) {
+          savedBills = JSON.parse(savedBillsData);
+          // Ensure it's an array
+          if (!Array.isArray(savedBills)) {
+            console.warn(
+              "savedBills is not an array, resetting to empty array",
+            );
+            savedBills = [];
+          }
+        }
+      } catch (parseError) {
+        console.error(
+          "Error parsing savedBills from localStorage:",
+          parseError,
+        );
+        // Reset to empty array if data is corrupted
+        savedBills = [];
+        try {
+          localStorage.setItem("savedBills", JSON.stringify([]));
+        } catch (resetError) {
+          console.error("Failed to reset savedBills:", resetError);
+        }
+      }
 
       // Check if bill name already exists
       const existingBillIndex = savedBills.findIndex(
@@ -175,7 +217,7 @@ export default function CredentialManager({
 
       // Keep only last 50 bills to prevent localStorage overflow
       const trimmedBills = savedBills.slice(-50);
-      
+
       try {
         localStorage.setItem("savedBills", JSON.stringify(trimmedBills));
       } catch (storageError) {
@@ -186,15 +228,17 @@ export default function CredentialManager({
       }
 
       // Call parent save handler
-      if (onSave && typeof onSave === 'function') {
+      if (onSave && typeof onSave === "function") {
         onSave(billDataForSave);
+        toast.success("Bill saved successfully!");
       } else {
         console.error("onSave handler is not available");
         setError("Save handler not available. Please try again.");
+        toast.error("Save handler not available. Please try again.");
         setIsLoading(false);
         return;
       }
-      
+
       onClose();
 
       // Reset form
@@ -203,208 +247,101 @@ export default function CredentialManager({
       setBillName("");
     } catch (err) {
       console.error("Error saving bill:", err);
-      setError(`Failed to save bill: ${err.message || 'Unknown error'}`);
+      setError(`Failed to save bill: ${err.message || "Unknown error"}`);
+      toast.error(`Failed to save bill: ${err.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white max-w-2xl w-full shadow-2xl border border-gray-200">
+    <div className="modal-backdrop">
+      <div className="modal-content !max-w-md">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                <span className="text-white text-xl font-bold">💾</span>
-              </div>
-              <div>
-                <h2 className="text-3xl font-bold">Save Bill</h2>
-                <p className="text-blue-100 text-lg">
-                  Enter credentials to save your bill
-                </p>
-              </div>
+        <div className="modal-header">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center shadow-lg">
+              <span className="text-white text-xl">💾</span>
             </div>
-            <button
-              onClick={onClose}
-              className="text-white hover:text-blue-200 transition-colors duration-300 text-2xl font-bold"
-            >
-              ✕
-            </button>
+            <div>
+              <h2 className="text-xl font-bold m-0 leading-tight">Save Bill</h2>
+              <p className="text-xs text-white/80 m-0">
+                Securely store your data
+              </p>
+            </div>
           </div>
+          <button
+            onClick={onClose}
+            className="btn-icon !min-w-0 !w-8 !h-8 text-white hover:bg-white/10 rounded-lg"
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Form */}
-        <div className="p-6 space-y-8">
-          {/* Error Display */}
+        {/* Body */}
+        <div className="modal-body space-y-6">
           {error && (
-            <div className="bg-gradient-to-r from-red-50 to-pink-50 border-l-4 border-red-500 p-6 shadow-lg">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-red-500 flex items-center justify-center">
-                  <span className="text-white font-bold">⚠️</span>
-                </div>
-                <div>
-                  <p className="text-red-800 font-bold text-sm">
-                    Validation Error
-                  </p>
-                  <p className="text-red-700 text-sm">{error}</p>
-                </div>
-              </div>
+            <div className="p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger text-sm flex items-center gap-2">
+              <span>⚠️</span> {error}
             </div>
           )}
 
-          {/* Form Fields */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                  Username
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full border-2 border-gray-300 px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-white text-gray-900 font-semibold placeholder-gray-500 text-lg hover:border-blue-400"
-                  placeholder="Enter username"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border-2 border-gray-300 px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-white text-gray-900 font-semibold placeholder-gray-500 text-lg hover:border-blue-400"
-                  placeholder="Enter password"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                  Bill Name
-                </label>
-                <input
-                  type="text"
-                  value={billName}
-                  onChange={(e) => setBillName(e.target.value)}
-                  className="w-full border-2 border-gray-300 px-6 py-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 bg-white text-gray-900 font-semibold placeholder-gray-500 text-lg hover:border-blue-400"
-                  placeholder="Enter bill name"
-                />
-              </div>
+          <div className="space-y-4">
+            <div className="form-group">
+              <label htmlFor="billName">Bill Name / Reference</label>
+              <input
+                id="billName"
+                type="text"
+                placeholder="e.g., April Service Bill - RCFL"
+                value={billName}
+                onChange={(e) => setBillName(e.target.value)}
+                autoFocus
+              />
             </div>
 
-            {/* Bill Preview */}
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 uppercase tracking-wide">
-                  Bill Preview
-                </label>
-                <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-6 border border-gray-200 shadow-sm">
-                  <div className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 font-medium">
-                        Bill No:
-                      </span>
-                      <span className="text-gray-900 font-bold">
-                        {currentBillData?.billNumber || "N/A"}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 font-medium">
-                        Customer:
-                      </span>
-                      <span className="text-gray-900 font-bold truncate max-w-32">
-                        {currentBillData?.customerName || "N/A"}
-                      </span>
-                    </div>
-                    {currentBillData?.plantName && (
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 font-medium">
-                          Plant:
-                        </span>
-                        <span className="text-gray-900 font-bold truncate max-w-32">
-                          {currentBillData.plantName}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 font-medium">Items:</span>
-                      <span className="text-gray-900 font-bold">
-                        {currentBillData?.items?.length || 0}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600 font-medium">Total:</span>
-                      <span className="text-emerald-600 font-bold">
-                        ₹{(() => {
-                          if (!currentBillData?.items) return "0.00";
-                          const subtotal = currentBillData.items.reduce(
-                            (sum, item) => sum + (parseFloat(item.amount) || 0),
-                            0,
-                          );
-                          const totalCGST = currentBillData.items.reduce(
-                            (sum, item) =>
-                              sum + (parseFloat(item.cgstAmount) || 0),
-                            0,
-                          );
-                          const totalSGST = currentBillData.items.reduce(
-                            (sum, item) =>
-                              sum + (parseFloat(item.sgstAmount) || 0),
-                            0,
-                          );
-                          return (subtotal + totalCGST + totalSGST).toFixed(2);
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Status Indicator */}
-              <div className="bg-white p-6 border border-gray-200 shadow-sm">
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <div>
-                    <p className="text-sm font-bold text-gray-900">
-                      Ready to Save
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      All fields are properly configured
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <div className="form-group">
+              <label htmlFor="username">Prepared By</label>
+              <input
+                id="username"
+                type="text"
+                placeholder="Your name"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
-            <button
-              onClick={onClose}
-              className="px-8 py-4 bg-gray-500 text-white hover:bg-gray-600 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl hover:scale-105"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={isLoading}
-              className="px-8 py-4 bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-3"
-            >
-              {isLoading
-                ? <>
-                    <LoadingSpinner size="sm" text="" color="white" />
-                    <span>Saving...</span>
-                  </>
-                : <>
-                    <span>💾</span>
-                    <span>Save Bill</span>
-                  </>}
-            </button>
+          <div className="p-4 bg-bg-alt rounded-xl border border-border-light">
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-xs font-bold text-text-muted uppercase tracking-wider">
+                Preview Amount
+              </span>
+              <span className="text-lg font-black text-primary">
+                ₹{total.toFixed(2)}
+              </span>
+            </div>
+            <p className="text-[10px] text-text-muted italic leading-tight">
+              Totals will be recalculated automatically before saving.
+            </p>
           </div>
+        </div>
+
+        {/* Footer */}
+        <div className="modal-footer">
+          <button
+            onClick={onClose}
+            className="btn btn-outline"
+            disabled={isLoading}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isLoading || !billName.trim()}
+            className={`btn btn-primary min-w-[120px] ${isLoading ? "loading" : ""}`}
+          >
+            {isLoading ? "Saving..." : "Confirm Save"}
+          </button>
         </div>
       </div>
     </div>

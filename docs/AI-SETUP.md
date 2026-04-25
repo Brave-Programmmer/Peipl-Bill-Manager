@@ -1,135 +1,248 @@
 # Phoenix AI Setup Guide
 
-Phoenix AI supports free, self-hosted models for bill validation.
+## Quick Setup Options
 
-## Quick Start
+### Option 1: Ollama (Recommended - Free, Local)
 
-### Option 1: Ollama (Recommended - Local, Always Free)
+```bash
+# 1. Install Ollama
+# Download from https://ollama.ai
 
-**What is Ollama?** Local, offline AI that runs on your machine. Zero cost, zero external API keys needed.
+# 2. Start Ollama service
+ollama serve
 
-1. **Install Ollama:**
-   - Download from [ollama.ai](https://ollama.ai)
-   - Windows: Download installer, run it
-   - macOS: `brew install ollama`
-   - Linux: `curl https://ollama.ai/install.sh | sh`
+# 3. Pull a model (choose one)
+ollama pull mistral          # Default, balanced
+ollama pull neural-chat      # Faster, lighter  
+ollama pull llama2           # High quality
 
-2. **Start Ollama:**
-   ```bash
-   ollama serve
-   ```
-   This starts the Ollama API on `http://localhost:11434` (default).
+# 4. Test the setup
+node test-ai.js
+```
 
-3. **Pull a model (first time):**
-   ```bash
-   ollama pull mistral
-   ```
-   Or lighter model (faster): `ollama pull neural-chat`
+**Environment Variables (Optional):**
+```bash
+# Windows PowerShell
+$env:AI_PROVIDER = "ollama"
+$env:OLLAMA_MODEL = "mistral"
+$env:OLLAMA_BASE_URL = "http://localhost:11434"
 
-4. **Configure Phoenix AI:**
-   - Set `AI_PROVIDER=ollama` (default, no setup needed)
-   - Optionally set `OLLAMA_BASE_URL=http://localhost:11434` (already default)
-   - Optionally set `OLLAMA_MODEL=mistral` (default)
-
-5. **Test:**
-   ```bash
-   node test-ai.js
-   ```
-
----
+# Or create .env file:
+AI_PROVIDER=ollama
+OLLAMA_MODEL=mistral
+OLLAMA_BASE_URL=http://localhost:11434
+```
 
 ### Option 2: Mistral API (Free Tier)
 
-**What is Mistral?** Cloud-hosted free AI with competitive free tier.
+```bash
+# 1. Get API key
+# Visit https://console.mistral.ai (free signup)
 
-1. **Get API Key:**
-   - Visit [console.mistral.ai](https://console.mistral.ai)
-   - Sign up (free)
-   - Create API key in dashboard
+# 2. Set environment variables
+# Windows PowerShell
+$env:AI_PROVIDER = "mistral"
+$env:MISTRAL_API_KEY = "your_api_key_here"
 
-2. **Configure Phoenix AI:**
-   ```bash
-   export MISTRAL_API_KEY=your_api_key_here
-   export AI_PROVIDER=mistral
-   ```
+# Or create .env file:
+AI_PROVIDER=mistral
+MISTRAL_API_KEY=your_api_key_here
 
-3. **Test:**
-   ```bash
-   node test-ai.js
-   ```
+# 3. Test the setup
+node test-ai.js
+```
 
----
+### Option 3: Google Gemini (Free Tier)
 
-## Environment Variables
+```bash
+# 1. Get API key
+# Visit https://makersuite.google.com/app/apikey
 
-| Variable | Default | Example | Notes |
-|----------|---------|---------|-------|
-| `AI_PROVIDER` | `ollama` | `mistral` | Which provider to use |
-| `OLLAMA_BASE_URL` | `http://localhost:11434` | `http://127.0.0.1:11434` | Ollama API endpoint |
-| `OLLAMA_MODEL` | `mistral` | `neural-chat`, `llama2` | Ollama model name |
-| `MISTRAL_API_KEY` | (none) | `xxx...` | Mistral API key (required for Mistral) |
+# 2. Set environment variables
+# Windows PowerShell
+$env:AI_PROVIDER = "gemini"
+$env:GEMINI_API_KEY = "your_api_key_here"
 
----
+# Or create .env file:
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your_api_key_here
 
-## Model Recommendations
+# 3. Test the setup
+node test-ai.js
+```
 
-### For Ollama (Local):
-- **mistral** (7B): Balanced speed & quality, default
-- **neural-chat** (7B): Faster, lighter
-- **llama2** (7B/13B): Good quality, more VRAM needed
-- **zephyr** (7B): Good instruction-following
+## Enhanced Features
 
-### For Mistral API:
-- **mistral-small**: Fast, free tier eligible
-- **mistral-medium**: Higher quality
+### New API Endpoints
 
----
+The enhanced Phoenix AI now supports multiple actions:
+
+#### 1. Analyze (Full AI Analysis)
+```javascript
+fetch('/api/phoenix-analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    action: 'analyze',
+    meta: { /* bill metadata */ },
+    message: 'Analyze this bill'
+  })
+})
+```
+
+#### 2. Validate (Quick Validation)
+```javascript
+fetch('/api/phoenix-analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    action: 'validate',
+    meta: { /* bill metadata */ }
+  })
+})
+```
+
+#### 3. Enrich (Metadata Enhancement)
+```javascript
+fetch('/api/phoenix-analyze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    action: 'enrich',
+    meta: { /* bill metadata */ }
+  })
+})
+```
+
+### Enhanced Bill Analysis
+
+The AI now provides:
+
+- **Critical Validation Checklist** (7-10 items)
+- **Compliance Analysis** (GST regulations, tax applicability)
+- **Financial Risk Assessment** (High-value alerts, TDS applicability)
+- **Optimization Opportunities** (Tax planning, cost savings)
+- **Actionable Recommendations** (Specific steps for improvement)
+
+### Smart Fallback System
+
+When AI providers are unavailable, the system provides:
+
+- Risk-based validation checklists
+- Contextual recommendations
+- Enhanced manual validation guidance
+- Setup instructions for AI providers
 
 ## Troubleshooting
 
+### "Ollama model not found"
+```bash
+# Pull the required model
+ollama pull mistral
+# or
+ollama pull neural-chat
+# or  
+ollama pull llama2
+```
+
 ### "Ollama connection refused"
-- Make sure Ollama is running: `ollama serve` in another terminal
-- Check URL: `curl http://localhost:11434/api/tags` should return model list
+```bash
+# Make sure Ollama is running
+ollama serve
 
-### "MISTRAL_API_KEY not set"
-- Export it: `export MISTRAL_API_KEY=your_key`
-- Or add to `.env` file and load via `dotenv`
+# Test connection
+curl http://localhost:11434/api/tags
+```
 
-### "Model not found"
-- For Ollama: `ollama pull mistral`
-- For Mistral: Mistral API handles this automatically
+### API Key Issues
+```bash
+# Verify API key is set
+echo $MISTRAL_API_KEY    # Linux/Mac
+echo $env:MISTRAL_API_KEY  # Windows
 
-### No response from AI
-- Check internet (Mistral) or Ollama service (local)
-- Check logs in app console
-- Fallback to manual upload (no AI required)
+# Check .env file
+cat .env
+```
 
----
+### Performance Issues
 
-## How Phoenix AI is Used
+1. **For Ollama:**
+   - Use `neural-chat` for faster responses
+   - Ensure sufficient RAM (8GB+ recommended)
 
-1. **Validate Bill:** Before upload, Phoenix AI checks:
-   - Invoice number format
-   - GSTIN validity
-   - Company info completeness
-   - Potential GEM issues
+2. **For Cloud APIs:**
+   - Check internet connection
+   - Verify API key validity
+   - Monitor rate limits
 
-2. **Generate Checklist:** AI provides a 3-step action plan for upload
+## Model Recommendations
 
-3. **Safe Defaults:** If AI unavailable, upload proceeds without analysis
+### Ollama Models (Local)
+- **mistral** (7B): Default, balanced speed/quality
+- **neural-chat** (7B): Faster, lighter responses
+- **llama2** (7B/13B): Higher quality, more VRAM needed
 
----
+### Cloud Models
+- **mistral-small-latest**: Fast, free tier eligible
+- **gemini-pro**: Google's model, free tier available
 
-## Performance Tips
+## Advanced Configuration
 
-- **Ollama:** First response takes 2-5 sec (model loads). Subsequent responses faster.
-- **Mistral API:** ~1-2 sec per response, depends on internet.
-- **Choose lighter models** for faster responses (neural-chat vs. llama2).
+### Custom Prompts
+Edit `src/utils/phoenixAI.js` to customize analysis prompts for your specific business needs.
 
----
+### Provider Priority
+Change the fallback order in `runAIAnalysis()` to prioritize your preferred providers.
 
-## Cost
+### Timeout Settings
+Adjust timeout values in provider functions for your network conditions.
 
-- **Ollama:** FREE. Runs locally, no internet required.
-- **Mistral API:** FREE tier available (check their docs for limits).
+## Testing
 
+### Basic Test
+```bash
+node test-ai.js
+```
+
+### Integration Test
+1. Open the bill manager application
+2. Create a test bill with items
+3. Click the Phoenix AI assistant
+4. Type "analyze this bill"
+5. Review the AI analysis
+
+### Expected Output
+```
+🧪 Phoenix AI Test
+
+Configuration:
+  AI_PROVIDER: ollama
+  OLLAMA_BASE_URL: http://localhost:11434
+
+🔄 Calling AI for bill validation...
+
+✅ Analysis Result:
+
+📋 **Validation Report:**
+1. ✓ Invoice number format is correct (INV-2026-001)
+2. ✓ GSTIN is valid format (27AAACR2831H1ZK)
+3. ✓ Amount calculations are accurate
+...
+```
+
+## Security & Privacy
+
+- **Ollama**: 100% local, no data leaves your machine
+- **Mistral**: Data sent to Mistral's EU servers
+- **Gemini**: Data sent to Google's servers
+- **OpenAI**: Data sent to OpenAI's servers
+
+For maximum privacy, use Ollama exclusively.
+
+## Support
+
+For issues:
+1. Check this guide first
+2. Run `node test-ai.js` for diagnostics
+3. Review `PHOENIX-AI-INTEGRATION.md`
+4. Check application logs for detailed error messages

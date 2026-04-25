@@ -162,12 +162,12 @@ export const useBillTrackerReducer = () => {
   // Memoized computed values
   const selectedFilesArray = useMemo(
     () => Array.from(state.selectedFiles),
-    [state.selectedFiles]
+    [state.selectedFiles],
   );
 
   const selectedSubfoldersArray = useMemo(
     () => Array.from(state.selectedSubfolders),
-    [state.selectedSubfolders]
+    [state.selectedSubfolders],
   );
 
   const canUndo = useMemo(() => state.undoStack.length > 0, [state.undoStack]);

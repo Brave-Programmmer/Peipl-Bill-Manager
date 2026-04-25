@@ -7,6 +7,10 @@ import { exportToPDF, printBill } from "../utils/pdfGenerator";
 // Math.js instance
 const math = create(all, { number: "number" });
 
+// Utility functions for unified date-rate-quantity management (shared with ItemsTable)
+
+// createDateRateEntry and synchronizeDateRateQuantities functions removed - all fields now work independently
+
 // Helpers for formula calculation
 const FormulaUtils = {
   normalizeToArray(val) {
@@ -20,13 +24,15 @@ const FormulaUtils = {
       if (c.type === "formula" && c.formula) {
         try {
           map[c.key] = math.compile(c.formula);
-        } catch { }
+        } catch {}
       }
     });
     return map;
   },
   calculateRow(row, columns, compiledFormulas) {
+    // Work with row as-is - no synchronization needed for independent arrays
     const r = { ...row };
+
     columns.forEach((col) => {
       if (col.type === "formula" && col.formula) {
         try {
@@ -35,10 +41,18 @@ const FormulaUtils = {
             return acc;
           }, {});
 
-          const lengths = Object.values(scopeArrays).map((a) => a.length).filter(Boolean);
-          const maxLen = lengths.length ? Math.max(...lengths) : 1;
+          // For formula calculations, base the length on rate and quantity arrays only
+          // Dates should not affect the number of formula results
+          const quantityArray = Array.isArray(r.quantity) ? r.quantity : null;
+          const rateArray = Array.isArray(r.rate) ? r.rate : null;
+          const maxLen = Math.max(
+            quantityArray?.length || 0,
+            rateArray?.length || 0,
+            1,
+          );
 
-          const compiled = compiledFormulas[col.key] || math.compile(col.formula);
+          const compiled =
+            compiledFormulas[col.key] || math.compile(col.formula);
           const results = new Array(maxLen);
 
           for (let i = 0; i < maxLen; i++) {
@@ -58,7 +72,10 @@ const FormulaUtils = {
         } catch (err) {
           r[col.key] = "Err";
           // eslint-disable-next-line no-console
-          console.warn("Formula calculation error in BillGenerator:", err && err.message ? err.message : err);
+          console.warn(
+            "Formula calculation error in BillGenerator:",
+            err && err.message ? err.message : err,
+          );
         }
       }
     });
@@ -75,10 +92,30 @@ const DEFAULT_COLUMNS = [
   { key: "sacHsn", label: "SAC/HSN" },
   { key: "quantity", label: "Qty" },
   { key: "rate", label: "Rate (₹)" },
-  { key: "amount", label: "Taxable Value (₹)", type: "formula", formula: "quantity * rate" },
-  { key: "cgstAmount", label: "CGST (9%)", type: "formula", formula: "amount * 0.09" },
-  { key: "sgstAmount", label: "SGST (9%)", type: "formula", formula: "amount * 0.09" },
-  { key: "totalWithGST", label: "Total (₹)", type: "formula", formula: "amount + cgstAmount + sgstAmount" },
+  {
+    key: "amount",
+    label: "Taxable Value (₹)",
+    type: "formula",
+    formula: "quantity * rate",
+  },
+  {
+    key: "cgstAmount",
+    label: "CGST (9%)",
+    type: "formula",
+    formula: "amount * 0.09",
+  },
+  {
+    key: "sgstAmount",
+    label: "SGST (9%)",
+    type: "formula",
+    formula: "amount * 0.09",
+  },
+  {
+    key: "totalWithGST",
+    label: "Total (₹)",
+    type: "formula",
+    formula: "amount + cgstAmount + sgstAmount",
+  },
 ];
 
 export default function BillGenerator({
@@ -91,6 +128,7 @@ export default function BillGenerator({
 }) {
   const [isExporting, setIsExporting] = useState(false);
   const [orderNo, setOrderNo] = useState(billData.orderNo || "");
+  const [viewMode, setViewMode] = useState("current"); // "current" or "all"
 
   // Keep local orderNo in sync when parent billData changes
   useEffect(() => {
@@ -101,10 +139,14 @@ export default function BillGenerator({
   const columns = useMemo(() => {
     const baseCols = billData.columns || DEFAULT_COLUMNS;
     // Ensure formulas are present and types are correct (only compute once)
-    return baseCols.map(col => {
-      const defaults = DEFAULT_COLUMNS.find(dc => dc.key === col.key);
+    return baseCols.map((col) => {
+      const defaults = DEFAULT_COLUMNS.find((dc) => dc.key === col.key);
       if (defaults && defaults.type === "formula") {
-        return { ...col, type: "formula", formula: col.formula || defaults.formula };
+        return {
+          ...col,
+          type: "formula",
+          formula: col.formula || defaults.formula,
+        };
       }
       return col;
     });
@@ -114,22 +156,25 @@ export default function BillGenerator({
   // Memoize expensive calculations
   const compiledFormulas = useMemo(
     () => FormulaUtils.compileFormulas(columns),
-    [columns]
+    [columns],
   );
   const rows = useMemo(() => {
     return (billData.items || []).map((item, idx) => {
+      // No synchronization - work with item as-is for independent arrays
       const withSr = {
         ...item,
         srNoDate:
           item.srNoDate !== undefined
             ? item.srNoDate
-            : `${idx + 1}${item.dates && item.dates[0] ? " / " + item.dates[0] : ""
-            }`,
+            : `${idx + 1}${
+                item.dates && item.dates[0] ? " / " + item.dates[0] : ""
+              }`,
       };
       return FormulaUtils.calculateRow(withSr, columns, compiledFormulas);
     });
   }, [billData.items, columns, compiledFormulas]);
   const rowsPerPage = Number(billData.rowsPerPage) || 10;
+  const currentPage = Math.max(1, Number(billData.currentPage) || 1);
   const pagedRows = useMemo(() => {
     const pages = [];
     for (let i = 0; i < rows.length; i += rowsPerPage)
@@ -137,32 +182,12 @@ export default function BillGenerator({
     return pages;
   }, [rows, rowsPerPage]);
 
-  if (!isVisible) return null;
-
-  // Calculate all totals from recalculated rows, not from billData
-  // If a cell value is an array, sum all values for that cell
-  const sumCell = (cell) => {
-    if (Array.isArray(cell))
-      return cell.reduce((s, v) => s + (parseFloat(v) || 0), 0);
-    return parseFloat(cell) || 0;
-  };
-  const calculateSubtotal = () => {
-    if (!rows.length) return 0;
-    return rows.reduce((sum, row) => sum + sumCell(row.amount), 0);
-  };
-
-  const calculateTotalCGST = () => {
-    if (!rows.length) return 0;
-    return rows.reduce((sum, row) => sum + sumCell(row.cgstAmount), 0);
-  };
-
-  const calculateTotalSGST = () => {
-    if (!rows.length) return 0;
-    return rows.reduce((sum, row) => sum + sumCell(row.sgstAmount), 0);
-  };
-
-  const calculateTotal = () =>
-    calculateSubtotal() + calculateTotalCGST() + calculateTotalSGST();
+  // Get current page rows for display
+  const currentPageRows = useMemo(() => {
+    if (pagedRows.length === 0) return [];
+    const pageIndex = Math.min(currentPage - 1, pagedRows.length - 1);
+    return pagedRows[pageIndex];
+  }, [pagedRows, currentPage]);
 
   // Calculate column totals for display in table
   const calculateColumnTotals = () => {
@@ -193,15 +218,44 @@ export default function BillGenerator({
 
   const columnTotals = useMemo(() => calculateColumnTotals(), [rows, columns]);
 
+  if (!isVisible) return null;
+
+  // Calculate all totals from recalculated rows, not from billData
+  // If a cell value is an array, sum all values for that cell
+  const sumCell = (cell) => {
+    if (Array.isArray(cell))
+      return cell.reduce((s, v) => s + (parseFloat(v) || 0), 0);
+    return parseFloat(cell) || 0;
+  };
+  const calculateSubtotal = () => {
+    if (!rows.length) return 0;
+    return rows.reduce((sum, row) => sum + sumCell(row.amount), 0);
+  };
+
+  const calculateTotalCGST = () => {
+    if (!rows.length) return 0;
+    return rows.reduce((sum, row) => sum + sumCell(row.cgstAmount), 0);
+  };
+
+  const calculateTotalSGST = () => {
+    if (!rows.length) return 0;
+    return rows.reduce((sum, row) => sum + sumCell(row.sgstAmount), 0);
+  };
+
+  const calculateTotal = () =>
+    calculateSubtotal() + calculateTotalCGST() + calculateTotalSGST();
+
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "Invalid Date";
-    return date.toLocaleDateString("en-IN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+
+    // Use consistent date formatting to avoid hydration mismatch
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+
+    return `${day}/${month}/${year}`;
   };
 
   // number-to-words (supports up to crores; built for rupees, lakhs)
@@ -311,7 +365,14 @@ export default function BillGenerator({
       }
 
       // Copy only the values (one per line) so they can be pasted individually
-      const values = [invoiceNo, invoiceDate, subtotal, grandTotal, sacHsn, gstin];
+      const values = [
+        invoiceNo,
+        invoiceDate,
+        subtotal,
+        grandTotal,
+        sacHsn,
+        gstin,
+      ];
       const text = values.join("\n");
 
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -347,13 +408,11 @@ export default function BillGenerator({
     printBill("bill-content", billData.billNumber);
   };
 
-
-
   const handleSaveBill = () => {
     try {
       // Remove validation checks - allow saving with any data
       // Only ensure basic structure exists
-      
+
       const completeBillData = {
         ...billData,
         orderNo: orderNo || "",
@@ -399,7 +458,7 @@ export default function BillGenerator({
       // Also save to localStorage as backup
       try {
         const savedBills = JSON.parse(
-          localStorage.getItem("saved_bills") || "[]"
+          localStorage.getItem("saved_bills") || "[]",
         );
         savedBills.unshift({
           id: `bill_${Date.now()}`,
@@ -413,7 +472,7 @@ export default function BillGenerator({
         // Keep only last 50 bills in localStorage
         localStorage.setItem(
           "saved_bills",
-          JSON.stringify(savedBills.slice(0, 50))
+          JSON.stringify(savedBills.slice(0, 50)),
         );
       } catch (storageErr) {
         console.warn("Could not save to localStorage:", storageErr);
@@ -426,7 +485,7 @@ export default function BillGenerator({
       });
     } catch (err) {
       console.error("Error saving bill:", err);
-      toast.error(`Failed to save bill: ${err.message || 'Unknown error'}`);
+      toast.error(`Failed to save bill: ${err.message || "Unknown error"}`);
     }
   };
 
@@ -528,7 +587,7 @@ export default function BillGenerator({
     totalPages = 1,
   }) => {
     const pageColumns = columns.filter((c) =>
-      rowsForPage.some((r) => Object.prototype.hasOwnProperty.call(r, c.key))
+      rowsForPage.some((r) => Object.prototype.hasOwnProperty.call(r, c.key)),
     );
     // if no columns detected for this page, fall back to all columns
     const visibleColumns = pageColumns.length > 0 ? pageColumns : columns;
@@ -791,14 +850,20 @@ export default function BillGenerator({
           <table
             style={{
               width: "100%",
-              borderCollapse: "collapse",
+              borderRadius: "0px",
               fontSize: 10,
               border: "2px solid #000",
               tableLayout: "auto",
             }}
           >
-            <thead>
-              <tr style={{ backgroundColor: "#d4d4d8", borderBottom: "2px solid #000" }}>
+            <thead className="rounded-none">
+              <tr
+                style={{
+                  borderRadius: "0px",
+                  backgroundColor: "#d4d4d8",
+                  borderBottom: "2px solid #000",
+                }}
+              >
                 {visibleColumns.map((col) => (
                   <th
                     key={col.key}
@@ -823,148 +888,212 @@ export default function BillGenerator({
         </div>
 
         {/* Footer content - different for last page vs other pages */}
-        {isLastPage ? (
-          <>
-            {/* Totals section only on the last page */}
-            <div
-              style={{
-                marginBottom: 10,
-                border: "2px solid #000",
-                padding: 12,
-                backgroundColor: "#ffffff",
-              }}
-            >
+        {isLastPage
+          ? <>
+              {/* Totals section only on the last page */}
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr auto",
-                  gap: 16,
-                  alignItems: "end",
+                  marginBottom: 10,
+                  border: "2px solid #000",
+                  padding: 12,
+                  backgroundColor: "#ffffff",
                 }}
               >
                 <div
-                  style={{ display: "flex", flexDirection: "column", gap: 4 }}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr auto",
+                    gap: 16,
+                    alignItems: "end",
+                  }}
                 >
                   <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "4px 0",
-                    }}
+                    style={{ display: "flex", flexDirection: "column", gap: 4 }}
                   >
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "4px 0",
+                      }}
                     >
-                      Subtotal:
-                    </span>
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                      >
+                        Subtotal:
+                      </span>
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                      >
+                        ₹{calculateSubtotal().toFixed(2)}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "4px 0",
+                        borderTop: "1px solid #ddd",
+                      }}
                     >
-                      ₹{calculateSubtotal().toFixed(2)}
-                    </span>
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                      >
+                        CGST (9%):
+                      </span>
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                      >
+                        ₹{calculateTotalCGST().toFixed(2)}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        padding: "4px 0",
+                        borderTop: "1px solid #ddd",
+                      }}
+                    >
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                      >
+                        SGST (9%):
+                      </span>
+                      <span
+                        style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                      >
+                        ₹{calculateTotalSGST().toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "4px 0",
-                      borderTop: "1px solid #ddd",
+                      textAlign: "right",
+                      padding: "12px 16px",
+                      backgroundColor: "#f8f9fa",
+                      border: "2px solid #000",
+                      minWidth: "200px",
                     }}
                   >
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
+                    <div
+                      style={{ fontSize: 10, color: "#666", marginBottom: 4 }}
                     >
-                      CGST (9%):
-                    </span>
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
+                      GRAND TOTAL
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 18,
+                        fontWeight: 700,
+                        color: "#000",
+                        letterSpacing: "0.5px",
+                      }}
                     >
-                      ₹{calculateTotalCGST().toFixed(2)}
-                    </span>
+                      ₹{calculateTotal().toFixed(2)}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "4px 0",
-                      borderTop: "1px solid #ddd",
-                    }}
-                  >
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#000" }}
-                    >
-                      SGST (9%):
-                    </span>
-                    <span
-                      style={{ fontSize: 11, fontWeight: 600, color: "#333" }}
-                    >
-                      ₹{calculateTotalSGST().toFixed(2)}
-                    </span>
-                  </div>
+                </div>
+              </div>
+
+              {/* Amount in Words & Signature only on the last page */}
+              <div
+                style={{
+                  marginBottom: 10,
+                  border: "2px solid #000",
+                  padding: 12,
+                  backgroundColor: "#f8f9fa",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#666",
+                    marginBottom: 4,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Amount in Words
                 </div>
                 <div
                   style={{
-                    textAlign: "right",
-                    padding: "12px 16px",
-                    backgroundColor: "#f8f9fa",
-                    border: "2px solid #000",
-                    minWidth: "200px",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    color: "#000",
+                    lineHeight: 1.5,
                   }}
                 >
-                  <div style={{ fontSize: 10, color: "#666", marginBottom: 4 }}>
-                    GRAND TOTAL
+                  {amountInWords(calculateTotal())}
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 24,
+                }}
+              >
+                <div style={{ flex: 1, padding: 2 }}>
+                  <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
+                    BILL IS PAYABLE WITHIN THIRTY DAYS
+                  </p>
+                  <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
+                    ALL PAYMENT TO BE MADE BY A/C PAYEE / DRAFT
+                  </p>
+                  <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
+                    IN FAVOUR OF PUJARI ENGINEERS INDIA (P) LTD.
+                  </p>
+                  <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
+                    GSTIN: 27AADCP2938G1ZD
+                  </p>
+                </div>
+                <div
+                  style={{
+                    width: 300,
+                    textAlign: "center",
+                    position: "relative",
+                  }}
+                >
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ margin: 0, fontWeight: 500 }}>
+                      For PUJARI ENGINEERS INDIA PVT. LTD.
+                    </p>
+                    <div style={{ marginTop: 28 }}>
+                      <p style={{ margin: 0, fontWeight: 500 }}>
+                        SANDEEP. D.PUJARI
+                      </p>
+                      <p style={{ margin: 0, fontSize: 10 }}>(Director)</p>
+                    </div>
                   </div>
                   <div
                     style={{
-                      fontSize: 18,
-                      fontWeight: 700,
-                      color: "#000",
-                      letterSpacing: "0.5px",
+                      position: "absolute",
+                      left: "50%",
+                      top: "35%",
+                      transform: "translate(-50%,-50%)",
+                      opacity: 0.75,
                     }}
                   >
-                    ₹{calculateTotal().toFixed(2)}
+                    <img
+                      src="./stamp.png"
+                      alt="Company Stamp"
+                      width={80}
+                      height={80}
+                      className="object-contain"
+                    />
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Amount in Words & Signature only on the last page */}
+            </>
+          : /* Simple footer for non-last pages */
             <div
               style={{
-                marginBottom: 10,
-                border: "2px solid #000",
-                padding: 12,
-                backgroundColor: "#f8f9fa",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "#666",
-                  marginBottom: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                }}
-              >
-                Amount in Words
-              </div>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 12,
-                  color: "#000",
-                  lineHeight: 1.5,
-                }}
-              >
-                {amountInWords(calculateTotal())}
-              </div>
-            </div>
-
-            <div
-              style={{
+                marginTop: 12,
                 display: "flex",
                 justifyContent: "space-between",
-                gap: 24,
+                gap: 12,
+                alignItems: "flex-end",
               }}
             >
               <div style={{ flex: 1, padding: 2 }}>
@@ -981,81 +1110,17 @@ export default function BillGenerator({
                   GSTIN: 27AADCP2938G1ZD
                 </p>
               </div>
-              <div
-                style={{
-                  width: 300,
-                  textAlign: "center",
-                  position: "relative",
-                }}
-              >
-                <div style={{ marginBottom: 8 }}>
-                  <p style={{ margin: 0, fontWeight: 500 }}>
-                    For PUJARI ENGINEERS INDIA PVT. LTD.
-                  </p>
-                  <div style={{ marginTop: 28 }}>
-                    <p style={{ margin: 0, fontWeight: 500 }}>
-                      SANDEEP. D.PUJARI
-                    </p>
-                    <p style={{ margin: 0, fontSize: 10 }}>(Director)</p>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    position: "absolute",
-                    left: "50%",
-                    top: "35%",
-                    transform: "translate(-50%,-50%)",
-                    opacity: 0.75,
-                  }}
-                >
-                  <img
-                    src="./stamp.png"
-                    alt="Company Stamp"
-                    width={80}
-                    height={80}
-                    className="object-contain"
-                  />
-                </div>
+              <div style={{ width: 80, textAlign: "center", opacity: 0.85 }}>
+                {/* small page-level stamp */}
+                <img
+                  src="./stamp.png"
+                  alt="Stamp"
+                  width={60}
+                  height={60}
+                  className="object-contain"
+                />
               </div>
-            </div>
-          </>
-        ) : (
-          /* Simple footer for non-last pages */
-          <div
-            style={{
-              marginTop: 12,
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              alignItems: "flex-end",
-            }}
-          >
-            <div style={{ flex: 1, padding: 2 }}>
-              <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
-                BILL IS PAYABLE WITHIN THIRTY DAYS
-              </p>
-              <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
-                ALL PAYMENT TO BE MADE BY A/C PAYEE / DRAFT
-              </p>
-              <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
-                IN FAVOUR OF PUJARI ENGINEERS INDIA (P) LTD.
-              </p>
-              <p className="text-sm" style={{ margin: 0, fontWeight: 500 }}>
-                GSTIN: 27AADCP2938G1ZD
-              </p>
-            </div>
-            <div style={{ width: 80, textAlign: "center", opacity: 0.85 }}>
-              {/* small page-level stamp */}
-              <img
-                src="./stamp.png"
-                alt="Stamp"
-                width={60}
-                height={60}
-                className="object-contain"
-              />
-            </div>
-          </div>
-        )}
+            </div>}
       </div>
     );
   };
@@ -1082,7 +1147,7 @@ export default function BillGenerator({
   // Render
   return (
     <>
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[150] p-4">
         <div className="bg-white shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto relative border-2 border-gray-200 rounded-lg">
           {/* Modern Button Toolbar */}
           <div className="print:hidden bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200 px-6 py-4 sticky top-0 z-10">
@@ -1126,6 +1191,131 @@ export default function BillGenerator({
                     </button>
                   </div>
 
+                  {/* View Mode Toggle */}
+                  {pagedRows.length > 1 && (
+                    <div className="flex gap-2 border-l-2 border-gray-300 pl-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
+                          View:
+                        </label>
+                        <select
+                          value={viewMode}
+                          onChange={(e) => setViewMode(e.target.value)}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent"
+                        >
+                          <option value="current">Current Page</option>
+                          <option value="all">All Pages</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Pagination Controls */}
+                  {pagedRows.length > 1 && viewMode === "current" && (
+                    <div className="flex gap-2 border-l-2 border-gray-300 pl-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-600 font-medium whitespace-nowrap">
+                          Rows per page:
+                        </label>
+                        <select
+                          value={rowsPerPage}
+                          onChange={(e) => {
+                            const newRowsPerPage = Number(e.target.value);
+                            setBillData((prev) => ({
+                              ...prev,
+                              rowsPerPage: newRowsPerPage,
+                            }));
+                          }}
+                          className="border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:border-transparent min-w-0"
+                        >
+                          <option value={5}>5</option>
+                          <option value={8}>8</option>
+                          <option value={10}>10</option>
+                          <option value={15}>15</option>
+                          <option value={20}>20</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const currentPage = Math.ceil(
+                              billData.currentPage || 1,
+                            );
+                            if (currentPage > 1) {
+                              setBillData((prev) => ({
+                                ...prev,
+                                currentPage: currentPage - 1,
+                              }));
+                            }
+                          }}
+                          disabled={(billData.currentPage || 1) <= 1}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                            (billData.currentPage || 1) <= 1
+                              ? "opacity-60 cursor-not-allowed"
+                              : ""
+                          }`}
+                          aria-label="Previous page"
+                        >
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="15,18 9,12 15,6" />
+                          </svg>
+                          <span className="hidden sm:inline">Prev</span>
+                        </button>
+
+                        <div className="text-sm text-gray-600 px-2 whitespace-nowrap">
+                          Page {billData.currentPage || 1} / {pagedRows.length}
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            const currentPage = Math.ceil(
+                              billData.currentPage || 1,
+                            );
+                            if (currentPage < pagedRows.length) {
+                              setBillData((prev) => ({
+                                ...prev,
+                                currentPage: currentPage + 1,
+                              }));
+                            }
+                          }}
+                          disabled={
+                            (billData.currentPage || 1) >= pagedRows.length
+                          }
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border-2 border-[#019b98] bg-[#e6fcfa] text-[#019b98] font-semibold shadow-sm hover:bg-[#019b98] hover:text-white transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-[#019b98] focus:ring-offset-2 text-sm ${
+                            (billData.currentPage || 1) >= pagedRows.length
+                              ? "opacity-60 cursor-not-allowed"
+                              : ""
+                          }`}
+                          aria-label="Next page"
+                        >
+                          <span className="hidden sm:inline">Next</span>
+                          <svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="9,18 15,12 9,6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <button
                     onClick={onEdit}
                     className="btn btn-outline shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm border-2 border-[#0d9488] text-[#0d9488] hover:bg-[#0d9488] hover:text-white"
@@ -1147,29 +1337,58 @@ export default function BillGenerator({
           </div>
 
           <div id="bill-content" className="p-6 pt-20">
-            {pagedRows.map((pageRows, pageIndex) => (
-              <div
-                key={`page-${pageIndex}`}
-                style={{
-                  width: "var(--peipl-print-width, 210mm)",
-                  minHeight: "var(--peipl-print-height, 297mm)",
-                  margin: "0 auto 24px auto",
-                  pageBreakAfter: "always",
-                  backgroundColor: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
-                  borderRadius: "4px",
-                  border: "1px solid #e5e7eb",
-                }}
-              >
-                <BillContent
-                  rowsForPage={pageRows}
-                  pageIndex={pageIndex}
-                  totalPages={
-                    pagedRows.length + (billData.manualExtraPages || 0)
-                  }
-                />
-              </div>
-            ))}
+            {viewMode === "current"
+              ? /* Show current page only */
+                <div
+                  style={{
+                    width: "var(--peipl-print-width, 210mm)",
+                    minHeight: "var(--peipl-print-height, 297mm)",
+                    margin: "0 auto 24px auto",
+                    pageBreakAfter: "always",
+                    backgroundColor: "#ffffff",
+                    boxShadow:
+                      "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                    borderRadius: "4px",
+                    border: "1px solid #e5e7eb",
+                  }}
+                >
+                  <BillContent
+                    rowsForPage={currentPageRows}
+                    pageIndex={currentPage - 1}
+                    totalPages={
+                      pagedRows.length + (billData.manualExtraPages || 0)
+                    }
+                  />
+                </div>
+              : /* Show all pages */
+                <>
+                  {pagedRows.map((pageRows, pageIndex) => (
+                    <div
+                      key={`page-${pageIndex}`}
+                      style={{
+                        width: "var(--peipl-print-width, 210mm)",
+                        minHeight: "var(--peipl-print-height, 297mm)",
+                        margin: "0 auto 24px auto",
+                        pageBreakAfter: "always",
+                        backgroundColor: "#ffffff",
+                        boxShadow:
+                          "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                        borderRadius: "4px",
+                        border: "1px solid #e5e7eb",
+                      }}
+                    >
+                      <BillContent
+                        rowsForPage={pageRows}
+                        pageIndex={pageIndex}
+                        totalPages={
+                          pagedRows.length + (billData.manualExtraPages || 0)
+                        }
+                      />
+                    </div>
+                  ))}
+                </>}
+
+            {/* Show manual extra pages if any */}
             {Array.from({ length: billData.manualExtraPages || 0 }).map(
               (_, i) => (
                 <div
@@ -1180,7 +1399,8 @@ export default function BillGenerator({
                     margin: "0 auto 24px auto",
                     pageBreakAfter: "always",
                     backgroundColor: "#ffffff",
-                    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
+                    boxShadow:
+                      "0 4px 12px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(0, 0, 0, 0.08)",
                     borderRadius: "4px",
                     border: "1px solid #e5e7eb",
                   }}
@@ -1199,7 +1419,7 @@ export default function BillGenerator({
                     </div>
                   </div>
                 </div>
-              )
+              ),
             )}
           </div>
         </div>

@@ -32,7 +32,7 @@
   border: 1px solid #d1d5db;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   border-radius: 4px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
 
 /* Word-style menu header */
@@ -47,7 +47,7 @@
 /* Word-style menu items */
 .word-menu-item {
   transition: all 0.15s ease;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   font-size: 13px;
   line-height: 1.4;
   border-left: 3px solid transparent;
@@ -92,8 +92,12 @@
 }
 
 @keyframes wordSpin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Keyboard shortcut styling */
@@ -102,7 +106,7 @@
   color: #6b7280;
   border: 1px solid #e5e7eb;
   border-radius: 3px;
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: 11px;
   padding: 2px 4px;
   margin-left: auto;
@@ -130,27 +134,27 @@
     border-color: #374151;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   }
-  
+
   .word-menu-header {
     background: #374151;
     border-color: #4b5563;
     color: #e5e7eb;
   }
-  
+
   .word-menu-item {
     color: #e5e7eb;
   }
-  
+
   .word-menu-item:hover {
     background: #374151;
     border-left-color: #3b82f6;
     color: #60a5fa;
   }
-  
+
   .word-menu-separator {
     background: #4b5563;
   }
-  
+
   .word-shortcut {
     background: #374151;
     color: #d1d5db;

@@ -9,7 +9,6 @@ import {
   useCallback,
 } from "react";
 import dynamic from "next/dynamic";
-import SplashScreen from "../components/SplashScreen";
 import AIAssistant from "../components/AIAssistant";
 import CustomTitleBar from "../components/CustomTitleBar";
 import toast from "react-hot-toast";
@@ -17,6 +16,18 @@ import {
   validateCompleteBillData,
   generateDefaultFileName,
 } from "../utils/billValidation";
+import {
+  calculateSubtotal,
+  calculateTotalCGST,
+  calculateTotalSGST,
+  calculateTotal,
+} from "../utils/billCalculations";
+import {
+  getNextBillNumber,
+  incrementBillNumberCounter,
+} from "../utils/idGenerator";
+import { useFileHandler } from "../hooks/useFileHandler";
+import { useFileParser } from "../hooks/useFileParser";
 
 // Create a loading spinner component for Suspense fallback
 const LoadingFallback = () => (
@@ -26,11 +37,12 @@ const LoadingFallback = () => (
 );
 
 // Memoized core components (loaded immediately - needed on initial render)
-const Header = memo(require("../components/Header").default);
-const CompanyInfo = memo(require("../components/CompanyInfo").default);
-const ItemsTable = memo(require("../components/ItemsTable").default);
-const Totals = memo(require("../components/Totals").default);
-const LoadingSpinner = memo(require("../components/LoadingSpinner").default);
+const Header = dynamic(() => import("../components/Header"), { ssr: false });
+const CompanyInfo = dynamic(() => import("../components/CompanyInfo"), { ssr: false });
+const CustomerInfo = dynamic(() => import("../components/CustomerInfo"), { ssr: false });
+const ItemsTable = dynamic(() => import("../components/ItemsTable"), { ssr: false });
+const Totals = dynamic(() => import("../components/Totals"), { ssr: false });
+const LoadingSpinner = dynamic(() => import("../components/LoadingSpinner"), { ssr: false });
 
 // Lazy load heavy modals/components with Suspense fallback
 const BillGenerator = dynamic(() => import("../components/BillGenerator"), {
@@ -39,14 +51,14 @@ const BillGenerator = dynamic(() => import("../components/BillGenerator"), {
 });
 const CredentialManager = dynamic(
   () => import("../components/CredentialManager"),
-  { 
+  {
     ssr: false,
     loading: () => <LoadingFallback />,
   },
 );
 const FileAssociationSetup = dynamic(
   () => import("../components/FileAssociationSetup"),
-  { 
+  {
     ssr: false,
     loading: () => <LoadingFallback />,
   },
@@ -61,14 +73,20 @@ const WelcomeGuide = dynamic(() => import("../components/WelcomeGuide"), {
 });
 const BillFolderTracker = dynamic(
   () => import("../components/BillFolderTracker"),
-  { 
+  {
+    ssr: false,
+    loading: () => <LoadingFallback />,
+  },
+);
+const FileRecoveryModal = dynamic(
+  () => import("../components/FileRecoveryModal"),
+  {
     ssr: false,
     loading: () => <LoadingFallback />,
   },
 );
 
 export default function Home() {
-  const [showSplash, setShowSplash] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [showCredentialManager, setShowCredentialManager] = useState(false);
   const [savedBills, setSavedBills] = useState([]);
@@ -80,61 +98,115 @@ export default function Home() {
   const [showBillFolderTracker, setShowBillFolderTracker] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [showTooltips, setShowTooltips] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // Closed by default
   const [isElectron, setIsElectron] = useState(false);
   const [pendingFileData, setPendingFileData] = useState(null);
+  const [currentFilePath, setCurrentFilePath] = useState(null);
+  const [isEditingExistingBill, setIsEditingExistingBill] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [originalBillData, setOriginalBillData] = useState(null);
 
   // Check if running in Electron
   useEffect(() => {
-    setIsElectron(typeof window !== "undefined" && !!window.electronAPI);
+    const electron = typeof window !== "undefined" && !!window.electronAPI;
+    setIsElectron(electron);
+    if (electron) {
+      document.body.classList.add("is-electron");
+    } else {
+      document.body.classList.remove("is-electron");
+    }
   }, []);
+
+  // Initialize file parser
+  const fileParser = useFileParser({
+    onLoadBillData: async (data, filePath, warnings) => {
+      await handleLoadBillData(data, filePath, warnings);
+    },
+    onCloseFile: () => {
+      setCurrentFilePath(null);
+      setIsEditingExistingBill(false);
+      setOriginalBillData(null);
+      setHasUnsavedChanges(false);
+    },
+  });
 
   // Early listener registration for file associations to avoid race conditions
   // This runs immediately and buffers file data if it arrives before the component is ready
   useEffect(() => {
     if (typeof window !== "undefined" && window.electronAPI) {
       console.log("[File Association] Setting up early listeners...");
-      
+
       // Set up listeners that will buffer events until the component is ready
       window.electronAPI.onOpenFile(({ data, filePath }) => {
-        console.log("[File Association] File open event received:", { filePath, dataType: typeof data });
+        console.log("[File Association] File open event received:", {
+          filePath,
+          dataType: typeof data,
+        });
         // Buffer the file data to be processed once the component is fully initialized
         setPendingFileData({ data, filePath });
       });
 
       window.electronAPI.onOpenFileError(({ error, filePath }) => {
-        console.log("[File Association] File open error received:", { filePath, error });
-        setShowSplash(false);
-        const fileName = filePath ? filePath.split(/[\\/]/).pop() : "Unknown file";
-        toast.error(`❌ Error opening ${fileName}: ${error}`, {
+        console.log("[File Association] File open error received:", {
+          filePath,
+          error,
+        });
+        const fileName = filePath
+          ? filePath.split(/[\/]/).pop()
+          : "Unknown file";
+        toast.error(`Error opening ${fileName}: ${error}`, {
           duration: 5000,
         });
       });
+
+      // New: Handle raw file content from main process
+      window.electronAPI.onOpenFileRaw(async ({ filePath, content }) => {
+        console.log("[File Association] Raw file content received:", {
+          filePath,
+          contentLength: content.length,
+        });
+
+        if (!initialized) {
+          // Buffer until component is ready
+          setPendingFileData({ filePath, content, isRaw: true });
+        } else {
+          // Parse immediately
+          try {
+            await fileParser.parseFileContent(filePath, content);
+          } catch (error) {
+            console.error("[File Association] Error parsing file:", error);
+            toast.error(`Error parsing file: ${error.message}`, {
+              duration: 5000,
+            });
+          }
+        }
+      });
     }
-  }, []);
+  }, [initialized, fileParser]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
   }, []);
 
-  const handleQuickSave = useCallback(() => {
-    handleSaveBillFile();
-  }, []);
-
-  const handleQuickGenerate = useCallback(() => {
-    generateBill();
-  }, []);
-
   // Check if user has seen tooltips before
   useEffect(() => {
-    const hasSeenTooltips = localStorage.getItem("hasSeenTooltips");
-    if (!hasSeenTooltips) {
-      setShowTooltips(true);
-      // Hide tooltips after 10 seconds
-      setTimeout(() => {
-        localStorage.setItem("hasSeenTooltips", "true");
-        setShowTooltips(false);
-      }, 10000);
+    try {
+      const hasSeenTooltips = localStorage.getItem("hasSeenTooltips");
+      if (!hasSeenTooltips) {
+        setShowTooltips(true);
+        // Hide tooltips after 10 seconds
+        setTimeout(() => {
+          try {
+            localStorage.setItem("hasSeenTooltips", "true");
+          } catch (storageError) {
+            console.error("Failed to save tooltips state:", storageError);
+          }
+          setShowTooltips(false);
+        }, 10000);
+      }
+    } catch (storageError) {
+      console.error("Failed to read tooltips state:", storageError);
+      setShowTooltips(true); // Default to showing tooltips if localStorage fails
     }
   }, []);
   const toggleItemsFullscreen = useCallback(
@@ -143,17 +215,19 @@ export default function Home() {
   );
   // Function to generate initial bill number (memoized)
   const generateInitialBillNumber = useCallback(() => {
-    const today = new Date();
-    const month = today.getMonth() + 1;
-    const year = today.getFullYear();
-    // If month is Jan-March, use previous year as start of financial year
-    const fyStart = month <= 3 ? year - 1 : year;
-    const fyEnd = fyStart + 1;
-    // Create financial year string (e.g., "2526" for 2025-26)
-    const fyString = `${fyStart.toString().slice(-2)}${fyEnd
-      .toString()
-      .slice(-2)}`;
-    return `PEIPLCH${fyString}/01`;
+    // During SSR, return a default value
+    if (typeof window === "undefined") {
+      const today = new Date();
+      const month = today.getMonth() + 1;
+      const year = today.getFullYear();
+      // If month is Jan-March, use previous year as start of financial year
+      const fyStart = month <= 3 ? year - 1 : year;
+      const fyEnd = fyStart + 1;
+      // Create financial year string (e.g., "2526" for 2025-26)
+      const fyString = `${fyStart.toString().slice(-2)}${fyEnd.toString().slice(-2)}`;
+      return `PEIPLCH${fyString}/01`;
+    }
+    return getNextBillNumber();
   }, []);
   const [billData, setBillData] = useState({
     billNumber: generateInitialBillNumber(),
@@ -193,9 +267,9 @@ export default function Home() {
     pan: "AADCP2938G",
   });
   const [showBill, setShowBill] = useState(false);
-  // Defer heavy setup until splash screen is complete
+  // Initialize setup immediately without splash screen delay
   useEffect(() => {
-    if (!showSplash && !initialized) {
+    if (!initialized) {
       // Load saved bills from localStorage
       try {
         const saved = JSON.parse(localStorage.getItem("savedBills") || "[]");
@@ -246,12 +320,14 @@ export default function Home() {
         e.stopPropagation();
         setIsDragOver(false);
         const files = Array.from(e.dataTransfer.files);
-        const jsonFiles = files.filter(
+        const billFiles = files.filter(
           (file) =>
-            file.type === "application/json" || file.name.endsWith(".json"),
+            file.type === "application/json" ||
+            file.name.endsWith(".json") ||
+            file.name.endsWith(".peiplbill"),
         );
-        if (jsonFiles.length > 0) {
-          const file = jsonFiles[0];
+        if (billFiles.length > 0) {
+          const file = billFiles[0];
           try {
             toast.loading("Loading file...", { id: "file-loading" });
             const text = await file.text();
@@ -261,12 +337,12 @@ export default function Home() {
           } catch (error) {
             console.error("Error reading dropped file:", error);
             toast.error(
-              "Error reading file. Please ensure it's a valid JSON file.",
+              "Error reading file. Please ensure it's a valid JSON or .peiplbill file.",
               { id: "file-loading" },
             );
           }
         } else {
-          toast.error("Please drop a valid JSON file.");
+          toast.error("Please drop a valid JSON or .peiplbill file.");
         }
       };
       document.addEventListener("dragover", handleDragOver);
@@ -304,9 +380,19 @@ export default function Home() {
             },
           ],
         };
-        const savedBills = JSON.parse(
-          localStorage.getItem("savedBills") || "[]",
-        );
+        let savedBills = [];
+        try {
+          const savedBillsData = localStorage.getItem("savedBills");
+          if (savedBillsData) {
+            savedBills = JSON.parse(savedBillsData);
+            if (!Array.isArray(savedBills)) {
+              savedBills = [];
+            }
+          }
+        } catch (parseError) {
+          console.error("Error parsing savedBills for RCF preset:", parseError);
+          savedBills = [];
+        }
         const rcfPreset = {
           ...rcfBillData,
           companyInfo: {
@@ -333,8 +419,12 @@ export default function Home() {
         } else {
           savedBills.push(rcfPreset);
         }
-        localStorage.setItem("savedBills", JSON.stringify(savedBills));
-        setSavedBills(savedBills);
+        try {
+          localStorage.setItem("savedBills", JSON.stringify(savedBills));
+          setSavedBills(savedBills);
+        } catch (storageError) {
+          console.error("Failed to save RCF preset:", storageError);
+        }
       };
       saveRCFPreset();
       // Desktop app file operation handlers
@@ -366,51 +456,52 @@ export default function Home() {
         }
       };
     }
-  }, [showSplash, initialized]);
+  }, [initialized]);
 
   // Process pending file data once the component is fully initialized
   // This handles the case where file association event fires before listeners are registered
   useEffect(() => {
-    if (pendingFileData && initialized && !showSplash) {
-      console.log("[File Association] Processing pending file data...", { filePath: pendingFileData.filePath });
-      try {
-        const bill = typeof pendingFileData.data === "string" 
-          ? JSON.parse(pendingFileData.data) 
-          : pendingFileData.data;
-        
-        const fileName = pendingFileData.filePath.split(/[\\/]/).pop();
-        
-        // Load the bill data - handleLoadBillData will be available by this point
-        // since the component is fully initialized
-        const processPendingFile = async () => {
-          try {
-            await handleLoadBillData(bill, pendingFileData.filePath);
-            // Show success message with filename
-            toast.success(`✅ Bill loaded: ${fileName}`, {
-              duration: 4000,
-              icon: "📄",
-            });
-          } catch (err) {
-            console.error("Error loading pending file:", err);
-            toast.error(`❌ Error loading bill: ${err.message}`, {
-              duration: 5000,
-            });
+    if (pendingFileData && initialized) {
+      console.log("[File Association] Processing pending file data...", {
+        filePath: pendingFileData.filePath,
+        isRaw: pendingFileData.isRaw,
+      });
+
+      const processPendingFile = async () => {
+        try {
+          if (pendingFileData.isRaw) {
+            // Handle raw file content (new approach)
+            await fileParser.parseFileContent(
+              pendingFileData.filePath,
+              pendingFileData.content,
+            );
+          } else {
+            // Handle parsed data (legacy approach)
+            const bill =
+              typeof pendingFileData.data === "string"
+                ? JSON.parse(pendingFileData.data)
+                : pendingFileData.data;
+
+            await handleLoadBillData(
+              bill,
+              pendingFileData.filePath,
+              pendingFileData.warnings,
+            );
           }
-        };
-        
-        processPendingFile();
-        
-        // Clear pending data
-        setPendingFileData(null);
-      } catch (err) {
-        console.error("Error processing pending file data:", err);
-        toast.error(`❌ Invalid bill file: ${err.message}`, {
-          duration: 5000,
-        });
-        setPendingFileData(null);
-      }
+        } catch (err) {
+          console.error("Error loading pending file:", err);
+          toast.error(`Error loading bill: ${err.message}`, {
+            duration: 5000,
+          });
+        }
+      };
+
+      processPendingFile();
+
+      // Clear pending data
+      setPendingFileData(null);
     }
-  }, [pendingFileData, initialized, showSplash]);
+  }, [pendingFileData, initialized, fileParser]);
 
   // Enhanced bill data loading function
   const handleLoadBillData = async (data, filePath) => {
@@ -479,6 +570,16 @@ export default function Home() {
         }));
       }
 
+      // Set current file path and editing status
+      if (filePath) {
+        setCurrentFilePath(filePath);
+        setIsEditingExistingBill(true);
+        // Set original data to track changes
+        const billToTrack = data.billData || data;
+        setOriginalBillData(JSON.stringify(billToTrack));
+        setHasUnsavedChanges(false);
+      }
+
       const fileName = filePath.split(/[\\/]/).pop();
       toast.success(`Bill loaded successfully: ${fileName}`, {
         duration: 3000,
@@ -495,7 +596,7 @@ export default function Home() {
       // Web-based file opening
       const input = document.createElement("input");
       input.type = "file";
-      input.accept = ".json";
+      input.accept = ".json,.peiplbill";
       input.onchange = async (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -529,39 +630,102 @@ export default function Home() {
   };
 
   // Memoized calculation functions for desktop handlers
-  const calculateSubtotal = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const amount = parseFloat(item.amount) || 0;
-      return sum + amount;
-    }, 0);
+  const calculateSubtotalMemo = useMemo(() => {
+    return calculateSubtotal(billData.items);
   }, [billData.items]);
 
-  const calculateTotalCGST = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const cgstAmount = parseFloat(item.cgstAmount) || 0;
-      return sum + cgstAmount;
-    }, 0);
+  const calculateTotalCGSTMemo = useMemo(() => {
+    return calculateTotalCGST(billData.items);
   }, [billData.items]);
 
-  const calculateTotalSGST = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const sgstAmount = parseFloat(item.sgstAmount) || 0;
-      return sum + sgstAmount;
-    }, 0);
+  const calculateTotalSGSTMemo = useMemo(() => {
+    return calculateTotalSGST(billData.items);
   }, [billData.items]);
 
-  const calculateTotal = useMemo(() => {
-    return calculateSubtotal + calculateTotalCGST + calculateTotalSGST;
-  }, [calculateSubtotal, calculateTotalCGST, calculateTotalSGST]);
+  const calculateTotalMemo = useMemo(() => {
+    return calculateTotal(billData.items);
+  }, [billData.items]);
+
+  const handleNewBill = useCallback(() => {
+    // Reset editing state for new bills
+    setCurrentFilePath(null);
+    setIsEditingExistingBill(false);
+    setHasUnsavedChanges(false);
+    setOriginalBillData(null);
+
+    // Reset bill data to initial state
+    const newBillData = {
+      billNumber: generateInitialBillNumber(),
+      date: new Date().toISOString().split("T")[0],
+      customerName: "RASHTRIYA CHEMICALS & FERTILIZERS LTD",
+      plantName: "AMMONIA V PLANT",
+      customerAddress: "TROMBAY UNIT\nMUMBAI.400 074",
+      customerPhone: "",
+      customerGST: "27AAACR2831H1ZK",
+      items: [
+        {
+          id: 1,
+          description: "",
+          sacHsn: "",
+          quantity: 1,
+          unit: "PCS",
+          rate: 0,
+          amount: 0,
+          cgstRate: 9,
+          cgstAmount: 0,
+          sgstRate: 9,
+          sgstAmount: 0,
+          totalWithGST: 0,
+          dates: [new Date().toISOString().split("T")[0]],
+        },
+      ],
+    };
+
+    setBillData(newBillData);
+    setOriginalBillData(JSON.stringify(newBillData));
+
+    toast.success("New bill created successfully!");
+  }, [generateInitialBillNumber]);
+
+  // Detect unsaved changes
+  useEffect(() => {
+    if (originalBillData) {
+      const currentDataString = JSON.stringify(billData);
+      setHasUnsavedChanges(currentDataString !== originalBillData);
+    }
+  }, [billData, originalBillData]);
+
+  // Handle unsaved changes before navigation
+  const handleUnsavedChanges = useCallback(
+    (callback) => {
+      if (hasUnsavedChanges) {
+        if (
+          window.confirm(
+            "You have unsaved changes. Do you want to save them before continuing?",
+          )
+        ) {
+          handleSaveBillFile().then(() => {
+            if (callback) callback();
+          });
+        } else {
+          if (callback) callback();
+        }
+      } else {
+        if (callback) callback();
+      }
+    },
+    [hasUnsavedChanges],
+  );
 
   const handleSaveBillFile = useCallback(async () => {
+    // Prevent duplicate submissions
+    if (isLoading) {
+      return;
+    }
+
+    setIsLoading(true);
+
     try {
-      // Remove validation checks - allow saving with any data
-      // Only ensure basic structure exists
-      
       // Only save raw bill data and company info, not calculated totals
       const { subtotal, totalCGST, totalSGST, total, ...rawBillData } =
         billData;
@@ -574,10 +738,39 @@ export default function Home() {
       };
 
       if (window.electronAPI) {
-        // Desktop app - use native file dialog
-        const result = await window.electronAPI.saveFile(completeBillData);
+        // Desktop app - handle update vs new save
+        let result;
+
+        if (isEditingExistingBill && currentFilePath) {
+          // Update existing file directly
+          result = await window.electronAPI.updateExistingFile(
+            completeBillData,
+            currentFilePath,
+          );
+        } else {
+          // Save new file
+          result = await window.electronAPI.saveFile(completeBillData);
+        }
+
         if (result.success) {
-          toast.success(`Bill saved successfully to: ${result.fileName || result.filePath}`);
+          if (result.updated) {
+            toast.success("Bill updated successfully!");
+          } else {
+            toast.success(
+              `Bill saved successfully to: ${result.fileName || result.filePath}`,
+            );
+            // Update current file path for future edits
+            setCurrentFilePath(result.filePath);
+            setIsEditingExistingBill(true);
+          }
+
+          // Update original data to mark as saved
+          setOriginalBillData(JSON.stringify(billData));
+          setHasUnsavedChanges(false);
+
+          // Increment bill number counter for next bill
+          incrementBillNumberCounter(billData.billNumber);
+
           // Update window title with saved file name
           if (result.fileName) {
             document.title = `PEIPL Bill Manager - ${result.fileName}`;
@@ -586,7 +779,7 @@ export default function Home() {
           toast.error(`Error saving bill: ${result.error}`);
         }
       } else {
-        // Web browser - use download
+        // Web browser - use download (always new file)
         try {
           const blob = new Blob([JSON.stringify(completeBillData, null, 2)], {
             type: "application/json",
@@ -599,7 +792,15 @@ export default function Home() {
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
+
           toast.success("Bill downloaded successfully!");
+
+          // Update original data to mark as saved
+          setOriginalBillData(JSON.stringify(billData));
+          setHasUnsavedChanges(false);
+
+          // Increment bill number counter for next bill
+          incrementBillNumberCounter(billData.billNumber);
         } catch (downloadError) {
           console.error("Download error:", downloadError);
           toast.error("Failed to download bill. Please try again.");
@@ -607,9 +808,81 @@ export default function Home() {
       }
     } catch (error) {
       console.error("Error saving bill file:", error);
-      toast.error(`Error saving bill file: ${error.message || 'Unknown error'}`);
+      toast.error(
+        `Error saving bill file: ${error.message || "Unknown error"}`,
+      );
+    } finally {
+      setIsLoading(false);
     }
-  }, [billData, companyInfo]);
+  }, [
+    billData,
+    companyInfo,
+    isLoading,
+    isEditingExistingBill,
+    currentFilePath,
+    generateDefaultFileName,
+    incrementBillNumberCounter,
+    setIsLoading,
+    setOriginalBillData,
+    setHasUnsavedChanges,
+    setCurrentFilePath,
+  ]);
+
+  const handleQuickSave = useCallback(() => {
+    handleSaveBillFile();
+  }, [handleSaveBillFile]);
+
+  // Keyboard shortcuts (added after function definitions to avoid circular dependencies)
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      // Only handle shortcuts when not typing in input fields or contenteditable areas
+      const activeElement = document.activeElement;
+      const isInputElement =
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.contentEditable === "true" ||
+          activeElement.closest('[contenteditable="true"]'));
+
+      // Also check if we're in a modal or dialog
+      const isInModal =
+        activeElement &&
+        (activeElement.closest(".modal") ||
+          activeElement.closest('[role="dialog"]') ||
+          activeElement.closest(".fixed"));
+
+      if (isInputElement || isInModal) return; // Don't interfere with typing
+
+      // Only handle modifier key combinations
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) return;
+
+      // Ctrl+S: Save bill
+      if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+        event.preventDefault();
+        handleSaveBillFile();
+      }
+      // Ctrl+N: New bill (with unsaved changes check)
+      if ((event.ctrlKey || event.metaKey) && event.key === "n") {
+        event.preventDefault();
+        handleUnsavedChanges(() => handleNewBill());
+      }
+      // Ctrl+O: Open bill (with unsaved changes check)
+      if ((event.ctrlKey || event.metaKey) && event.key === "o") {
+        event.preventDefault();
+        handleUnsavedChanges(() => handleOpenBillFile());
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [
+    handleSaveBillFile,
+    handleNewBill,
+    handleOpenBillFile,
+    handleUnsavedChanges,
+  ]);
 
   // Listen for save bill requests from other components
   useEffect(() => {
@@ -617,9 +890,9 @@ export default function Home() {
       handleSaveBillFile();
     };
 
-    window.addEventListener('save-bill-request', handleSaveRequest);
+    window.addEventListener("save-bill-request", handleSaveRequest);
     return () => {
-      window.removeEventListener('save-bill-request', handleSaveRequest);
+      window.removeEventListener("save-bill-request", handleSaveRequest);
     };
   }, [handleSaveBillFile]);
 
@@ -638,19 +911,23 @@ export default function Home() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       setShowBill(true);
       toast.success("Bill generated successfully!", {
-        icon: "✅",
+        icon: "",
         duration: 2000,
       });
     } catch (error) {
       console.error("Error generating bill:", error);
       toast.error("Error generating bill. Please try again.", {
-        icon: "❌",
+        icon: "",
         duration: 4000,
       });
     } finally {
       setIsLoading(false);
     }
-  }, [billData, companyInfo]);
+  }, []);
+
+  const handleQuickGenerate = useCallback(() => {
+    generateBill();
+  }, [generateBill]);
 
   const closeBill = useCallback(() => {
     setShowBill(false);
@@ -683,11 +960,8 @@ export default function Home() {
       toast.error("Error preparing bill for save. Please try again.");
     }
   }, []);
-  if (showSplash) {
-    return <SplashScreen onComplete={() => setShowSplash(false)} />;
-  }
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative">
+    <div className="min-h-screen bg-bg relative">
       {/* Custom Title Bar (Electron only) */}
       {isElectron && (
         <CustomTitleBar
@@ -701,183 +975,302 @@ export default function Home() {
           onShowFileAssociationSetup={() => setShowFileAssociationSetup(true)}
           isLoading={isLoading}
           showTooltips={showTooltips}
+          hasUnsavedChanges={hasUnsavedChanges}
         />
       )}
-      {/* Drag and Drop Overlay */}
-      {isDragOver && (
-        <div className="fixed inset-0 bg-blue-500/20 backdrop-blur-sm z-40 flex items-center justify-center animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border-2 border-dashed border-blue-400 p-12 text-center max-w-md mx-4 animate-bounce-in">
-            <div className="text-6xl mb-4 animate-pulse">📄</div>
-            <h3 className="text-2xl font-bold text-gray-800 mb-2">
-              Drop JSON File Here
-            </h3>
-            <p className="text-gray-600">Release to load your bill data</p>
-          </div>
-        </div>
-      )}
+
       <Header
         onToggleSidebar={toggleSidebar}
         sidebarOpen={sidebarOpen}
         onQuickSave={handleQuickSave}
         onQuickGenerate={handleQuickGenerate}
+        hasUnsavedChanges={hasUnsavedChanges}
       />
-      <main className="max-w-10xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+      <main className="section-container">
         {isLoading
-          ? <div className="flex items-center justify-center min-h-96">
+          ? <div className="flex items-center justify-center min-h-[60vh]">
               <LoadingSpinner
-                size="lg"
-                text="Generating Bill..."
+                size="xl"
+                text="Preparing your bill..."
                 color="blue"
               />
             </div>
-          : <div className="space-y-12">
-              {/* Company Information Section */}
-              <section className="bg-white shadow-xl border border-gray-200 animate-fade-in">
-                <CompanyInfo
-                  billData={billData}
-                  setBillData={setBillData}
-                  companyInfo={companyInfo}
-                  setCompanyInfo={setCompanyInfo}
-                  sidebarOpen={sidebarOpen}
-                  onToggleSidebar={toggleSidebar}
-                  hideMenuButton={isElectron}
-                />
-              </section>
-              {/* Items Table Section */}
-              <section
-                className="bg-white shadow-xl border border-gray-200 animate-fade-in"
-                style={{ animationDelay: "0.1s" }}
+          : <div className="space-y-6">
+              <div
+                className={`grid-dashboard relative ${!sidebarOpen ? "sidebar-collapsed" : ""}`}
               >
-                <ItemsTable
-                  billData={billData}
-                  setBillData={setBillData}
-                  compact
-                  toggleFullscreen={toggleItemsFullscreen}
-                  isFullscreen={isItemsFullscreen}
-                />
-              </section>
-              {/* Totals Section */}
-              <section
-                className="bg-white shadow-xl border border-gray-200 animate-fade-in"
-                style={{ animationDelay: "0.2s" }}
-              >
-                <Totals billData={billData} />
-              </section>
-              {/* Generate Bill Button */}
-              <section className="flex justify-center">
-                <div className="flex flex-wrap gap-4 justify-center">
-                  <button
-                    onClick={generateBill}
-                    disabled={isLoading}
-                    title={
-                      showTooltips
-                        ? "Create a professional bill with all your items and company details"
-                        : ""
-                    }
-                    className="bg-gradient-to-r from-emerald-500 via-green-500 to-teal-600 text-white px-16 py-6 hover:from-emerald-600 hover:via-green-600 hover:to-teal-700 transition-all duration-300 font-bold text-2xl shadow-2xl hover:shadow-3xl hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 flex items-center space-x-4 group relative"
-                  >
-                    {isLoading
-                      ? <LoadingSpinner size="sm" text="" color="white" />
-                      : <>
-                          <span className="text-3xl group-hover:scale-110 transition-transform duration-300">
-                            📄
-                          </span>
-                          <span>Generate Professional Bill</span>
-                          <span className="text-xl group-hover:scale-110 transition-transform duration-300">
-                            →
-                          </span>
-                        </>}
-                    {showTooltips && (
-                      <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl whitespace-nowrap animate-fade-in pointer-events-none">
-                        Create your invoice with all details
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-transparent border-t-gray-800" />
-                      </div>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleOpenBillFile}
-                    title={
-                      showTooltips
-                        ? "Open a previously saved bill file (Ctrl+O)"
-                        : ""
-                    }
-                    className="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-6 hover:from-green-700 hover:to-emerald-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group relative"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                      📂
-                    </span>
-                    <span>Open Bill</span>
-                    {showTooltips && (
-                      <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl whitespace-nowrap animate-fade-in pointer-events-none z-10">
-                        Load saved bill file (Ctrl+O)
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-transparent border-t-gray-800" />
-                      </div>
-                    )}
-                  </button>
-                  <button
-                    onClick={handleSaveBillFile}
-                    title={
-                      showTooltips
-                        ? "Save current bill as JSON file (Ctrl+S)"
-                        : ""
-                    }
-                    className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-6 hover:from-orange-700 hover:to-red-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group relative"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                      💾
-                    </span>
-                    <span>Save Bill</span>
-                    {showTooltips && (
-                      <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl whitespace-nowrap animate-fade-in pointer-events-none z-10">
-                        Export as JSON file (Ctrl+S)
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-transparent border-t-gray-800" />
-                      </div>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setShowUserManual(true)}
-                    title={
-                      showTooltips
-                        ? "View complete user manual and help guide"
-                        : ""
-                    }
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white px-8 py-6 hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group relative"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                      📚
-                    </span>
-                    <span>User Manual</span>
-                    {showTooltips && (
-                      <div className="absolute -top-16 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-sm px-4 py-2 rounded-lg shadow-xl whitespace-nowrap animate-fade-in pointer-events-none z-10">
-                        Get help & tutorials
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-0 h-0 border-4 border-transparent border-t-gray-800" />
-                      </div>
-                    )}
-                  </button>
-                  {window.electronAPI && (
-                    <>
-                      <button
-                        onClick={() => setShowBillFolderTracker(true)}
-                        className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-8 py-6 hover:from-cyan-700 hover:to-blue-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group"
-                      >
-                        <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                          📁
-                        </span>
-                        <span>Bill Folder Tracker</span>
-                      </button>
-                      <button
-                        onClick={() => setShowFileAssociationSetup(true)}
-                        className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-6 hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 font-bold text-xl shadow-2xl hover:shadow-3xl hover:scale-105 flex items-center space-x-4 group"
-                      >
-                        <span className="text-2xl group-hover:scale-110 transition-transform duration-300">
-                          🔗
-                        </span>
-                        <span>Setup File Associations</span>
-                      </button>
-                    </>
-                  )}
+                {/* Mobile Sidebar Backdrop */}
+                {sidebarOpen && (
+                  <div
+                    className="sidebar-backdrop lg:hidden"
+                    onClick={() => setSidebarOpen(false)}
+                  />
+                )}
+
+                {/* Sidebar / Left Column */}
+                <div
+                  className={`dashboard-sidebar space-y-6 ${!sidebarOpen ? "collapsed" : ""}`}
+                >
+                  {/* Business Profile */}
+                  <section className="card card-accent">
+                    <div className="card-header">
+                      <h2 className="card-title flex items-center gap-2">
+                        <svg
+                          className="w-5 h-5 text-primary"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                          />
+                        </svg>
+                        Business Profile
+                      </h2>
+                    </div>
+                    <CompanyInfo
+                      billData={billData}
+                      setBillData={setBillData}
+                      companyInfo={companyInfo}
+                      setCompanyInfo={setCompanyInfo}
+                    />
+                  </section>
+
+                  {/* Customer & Bill Details */}
+                  <section className="card">
+                    <div className="card-header">
+                      <h2 className="card-title flex items-center gap-2">
+                        <svg
+                          className="w-5 h-5 text-secondary"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                          />
+                        </svg>
+                        Customer Details
+                      </h2>
+                    </div>
+                    <CustomerInfo
+                      billData={billData}
+                      setBillData={setBillData}
+                    />
+                  </section>
                 </div>
-              </section>
+
+                {/* Main Content / Right Column */}
+                <div className="dashboard-content space-y-6">
+                  {/* Items Table Section - Now inside dashboard content to move with it */}
+                  <section className="card min-h-[500px] flex flex-col border-2 border-primary/20">
+                    <div className="card-header border-none pb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                          <svg
+                            className="w-5 h-5 text-primary"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                        </div>
+                        <div>
+                          <h2 className="card-title text-xl">Bill Items</h2>
+                          <p className="text-xs text-text-muted font-normal">
+                            {billData?.items?.length || 0} item
+                            {billData?.items?.length !== 1 ? "s" : ""} added
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={toggleItemsFullscreen}
+                          className="btn-icon btn-sm"
+                          title={
+                            isItemsFullscreen
+                              ? "Exit Fullscreen"
+                              : "Fullscreen View"
+                          }
+                        >
+                          {isItemsFullscreen
+                            ? <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.5}
+                                  d="M6 18L18 6M6 6l12 12"
+                                />
+                              </svg>
+                            : <svg
+                                className="w-5 h-5"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={1.5}
+                                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                                />
+                              </svg>}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <ItemsTable
+                        billData={billData}
+                        setBillData={setBillData}
+                        compact
+                        toggleFullscreen={toggleItemsFullscreen}
+                        isFullscreen={isItemsFullscreen}
+                      />
+                    </div>
+                  </section>
+
+                  {/* Summary & Actions Section */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <section className="card bg-bg-alt/30 border border-primary/20 hover:border-primary/40 transition-all">
+                      <div className="card-header border-none mb-2">
+                        <h2 className="card-title flex items-center gap-2 text-base">
+                          <svg
+                            className="w-5 h-5 text-primary"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01m-6 0h.01"
+                            />
+                          </svg>
+                          Payment Summary
+                        </h2>
+                      </div>
+                      <Totals billData={billData} />
+                    </section>
+
+                    <section className="card bg-gradient-to-br from-primary to-primary-dark text-inverse shadow-lg hover:shadow-xl transition-all">
+                      <div className="card-header border-white/10">
+                        <h2 className="card-title text-inverse flex items-center gap-2">
+                          <svg
+                            className="w-5 h-5"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M13 10V3L4 14h7v7l9-11h-7z"
+                            />
+                          </svg>
+                          Finalize Bill
+                        </h2>
+                      </div>
+                      <div className="p-2 space-y-4">
+                        <p className="text-sm opacity-90">
+                          Review all details carefully. Once generated, you can
+                          save the bill as a PDF for your records.
+                        </p>
+                        <button
+                          onClick={generateBill}
+                          className="btn w-full bg-white text-primary hover:bg-white/90 font-bold py-3 shadow-md hover:shadow-lg transition-all"
+                        >
+                          Generate Bill PDF
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+
+                  {/* Utility Actions */}
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    <button
+                      onClick={() => setShowUserManual(true)}
+                      className="btn-outline btn-sm flex items-center gap-1.5"
+                    >
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                        />
+                      </svg>
+                      <span>User Manual</span>
+                    </button>
+                    {isElectron && (
+                      <>
+                        <button
+                          onClick={() => setShowBillFolderTracker(true)}
+                          className="btn-outline btn-sm flex items-center gap-1.5"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                            />
+                          </svg>
+                          <span>Tracker</span>
+                        </button>
+                        <button
+                          onClick={() => setShowFileAssociationSetup(true)}
+                          className="btn-outline btn-sm flex items-center gap-1.5"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                            />
+                          </svg>
+                          <span>Setup</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>}
         {/* Bill Generator Modal */}
         <Suspense
@@ -947,6 +1340,19 @@ export default function Home() {
             billData={billData}
             companyInfo={companyInfo}
             pdfPath={billData?.pdfPath}
+          />
+        </Suspense>
+        {/* File Recovery Modal */}
+        <Suspense
+          fallback={<LoadingSpinner text="Loading Recovery Interface..." />}
+        >
+          <FileRecoveryModal
+            isVisible={fileParser.isRecoveryMode}
+            onAccept={fileParser.acceptRecoveredData}
+            onReject={fileParser.rejectRecoveredData}
+            corruptedData={fileParser.corruptedData}
+            recoveredData={fileParser.recoveredData}
+            filePath={fileParser.currentFilePath}
           />
         </Suspense>
       </main>

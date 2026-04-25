@@ -20,9 +20,12 @@ export default function UserManual({ isVisible, onClose }) {
           </h2>
 
           <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded mb-4">
-            <h3 className="font-bold text-green-800 mb-2">✨ New Feature: File Associations</h3>
+            <h3 className="font-bold text-green-800 mb-2">
+              ✨ New Feature: File Associations
+            </h3>
             <p className="text-green-700">
-              PEIPL Bill Assistant now supports file associations! Double-click saved bill files to open them directly.
+              PEIPL Bill Assistant now supports file associations! Double-click
+              saved bill files to open them directly.
             </p>
           </div>
 
@@ -32,11 +35,14 @@ export default function UserManual({ isVisible, onClose }) {
                 🔗 How File Associations Work
               </h3>
               <p className="text-gray-600 mb-3">
-                Bill files (.peiplbill and .json) are automatically registered to open with PEIPL Bill Assistant.
+                Bill files (.peiplbill and .json) are automatically registered
+                to open with PEIPL Bill Assistant.
               </p>
-              
+
               <div className="bg-blue-50 p-3 rounded mb-3">
-                <p className="text-blue-800 font-semibold mb-2">Supported File Types:</p>
+                <p className="text-blue-800 font-semibold mb-2">
+                  Supported File Types:
+                </p>
                 <ul className="list-disc list-inside text-blue-700 text-sm space-y-1 ml-4">
                   <li>.peiplbill - PEIPL Bill format (recommended)</li>
                   <li>.json - Standard JSON bill format</li>
@@ -44,7 +50,10 @@ export default function UserManual({ isVisible, onClose }) {
               </div>
 
               <p className="text-gray-600 text-sm">
-                📝 Example: Double-click <code className="bg-gray-200 px-1 rounded">bill_peiplch2526_001_2025-09-30.peiplbill</code>
+                📝 Example: Double-click{" "}
+                <code className="bg-gray-200 px-1 rounded">
+                  bill_peiplch2526_001_2025-09-30.peiplbill
+                </code>
               </p>
             </div>
 
@@ -52,31 +61,42 @@ export default function UserManual({ isVisible, onClose }) {
               <h3 className="text-lg font-semibold text-gray-800 mb-3">
                 ⚙️ Setting Up File Associations
               </h3>
-              
+
               <div className="space-y-3">
                 <div className="border-l-4 border-blue-500 pl-3">
-                  <p className="font-semibold text-gray-700">Step 1: Administrator Rights</p>
+                  <p className="font-semibold text-gray-700">
+                    Step 1: Administrator Rights
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    First-time setup requires administrator privileges to register file associations with Windows.
+                    First-time setup requires administrator privileges to
+                    register file associations with Windows.
                   </p>
                 </div>
 
                 <div className="border-l-4 border-blue-500 pl-3">
-                  <p className="font-semibold text-gray-700">Step 2: Run with Admin</p>
+                  <p className="font-semibold text-gray-700">
+                    Step 2: Run with Admin
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    Right-click the PEIPL Bill Assistant shortcut and select "Run as administrator" once.
+                    Right-click the PEIPL Bill Assistant shortcut and select
+                    "Run as administrator" once.
                   </p>
                 </div>
 
                 <div className="border-l-4 border-blue-500 pl-3">
-                  <p className="font-semibold text-gray-700">Step 3: Confirm Setup</p>
+                  <p className="font-semibold text-gray-700">
+                    Step 3: Confirm Setup
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    The application will automatically register file associations (this happens once).
+                    The application will automatically register file
+                    associations (this happens once).
                   </p>
                 </div>
 
                 <div className="border-l-4 border-green-500 pl-3">
-                  <p className="font-semibold text-gray-700 text-green-700">✓ All Set!</p>
+                  <p className="font-semibold text-gray-700 text-green-700">
+                    ✓ All Set!
+                  </p>
                   <p className="text-gray-600 text-sm">
                     You can now double-click any bill file to open it directly.
                   </p>
@@ -91,35 +111,55 @@ export default function UserManual({ isVisible, onClose }) {
 
               <div className="space-y-3">
                 <div className="border-l-4 border-blue-500 pl-3">
-                  <p className="font-semibold text-gray-700">Method 1: Double-Click</p>
+                  <p className="font-semibold text-gray-700">
+                    Method 1: Double-Click
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    Double-click any .peiplbill or .json file to open it instantly (fastest!)
+                    Double-click any .peiplbill or .json file to open it
+                    instantly (fastest!)
                   </p>
                 </div>
 
                 <div className="border-l-4 border-green-500 pl-3">
-                  <p className="font-semibold text-gray-700">Method 2: Drag & Drop</p>
+                  <p className="font-semibold text-gray-700">
+                    Method 2: Drag & Drop
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    Drag files directly onto the PEIPL Bill Assistant window to load them
+                    Drag files directly onto the PEIPL Bill Assistant window to
+                    load them
                   </p>
                 </div>
 
                 <div className="border-l-4 border-purple-500 pl-3">
-                  <p className="font-semibold text-gray-700">Method 3: Open Button</p>
+                  <p className="font-semibold text-gray-700">
+                    Method 3: Open Button
+                  </p>
                   <p className="text-gray-600 text-sm">
-                    Click "Open Bill" button in the app and browse to select a file
+                    Click "Open Bill" button in the app and browse to select a
+                    file
                   </p>
                 </div>
               </div>
             </div>
 
             <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
-              <h4 className="font-semibold text-yellow-800 mb-2">💡 Pro Tips</h4>
+              <h4 className="font-semibold text-yellow-800 mb-2">
+                💡 Pro Tips
+              </h4>
               <ul className="space-y-1 text-yellow-700 text-sm">
-                <li>• File associations work automatically after first admin run</li>
-                <li>• Right-click on any bill file and select "Open with" to verify</li>
-                <li>• Drag & drop works even before file associations are set up</li>
-                <li>• All three methods load the complete bill data instantly</li>
+                <li>
+                  • File associations work automatically after first admin run
+                </li>
+                <li>
+                  • Right-click on any bill file and select "Open with" to
+                  verify
+                </li>
+                <li>
+                  • Drag & drop works even before file associations are set up
+                </li>
+                <li>
+                  • All three methods load the complete bill data instantly
+                </li>
               </ul>
             </div>
           </div>
@@ -139,9 +179,9 @@ export default function UserManual({ isVisible, onClose }) {
           <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
             <h3 className="font-bold text-blue-800 mb-2">Welcome! 👋</h3>
             <p className="text-blue-700">
-              PEIPL Bill Assistant is a professional invoicing application designed
-              for creating, managing, and printing bills with ease. Built with a modern, 
-              intuitive interface and powerful features.
+              PEIPL Bill Assistant is a professional invoicing application
+              designed for creating, managing, and printing bills with ease.
+              Built with a modern, intuitive interface and powerful features.
             </p>
           </div>
 
@@ -221,10 +261,13 @@ export default function UserManual({ isVisible, onClose }) {
           </h2>
 
           <div className="bg-purple-50 border-l-4 border-purple-500 p-4 rounded mb-4">
-            <h3 className="font-bold text-purple-800 mb-2">🎯 New Design System</h3>
+            <h3 className="font-bold text-purple-800 mb-2">
+              🎯 New Design System
+            </h3>
             <p className="text-purple-700">
-              PEIPL Bill Assistant features a completely redesigned modern interface with 
-              professional colors, smooth animations, and improved accessibility.
+              PEIPL Bill Assistant features a completely redesigned modern
+              interface with professional colors, smooth animations, and
+              improved accessibility.
             </p>
           </div>
 
@@ -233,29 +276,35 @@ export default function UserManual({ isVisible, onClose }) {
               <h3 className="text-lg font-semibold text-gray-800 mb-3">
                 🎨 Color Scheme
               </h3>
-              
+
               <div className="space-y-2">
                 <div className="flex items-center gap-3 py-2">
                   <div className="w-12 h-12 rounded-lg bg-[#0d9488] shadow-md"></div>
                   <div>
                     <p className="font-semibold text-gray-800">Primary Teal</p>
-                    <p className="text-gray-600 text-sm">#0d9488 - Main actions & elements</p>
+                    <p className="text-gray-600 text-sm">
+                      #0d9488 - Main actions & elements
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 py-2">
                   <div className="w-12 h-12 rounded-lg bg-[#10b981] shadow-md"></div>
                   <div>
                     <p className="font-semibold text-gray-800">Success Green</p>
-                    <p className="text-gray-600 text-sm">#10b981 - Confirmations</p>
+                    <p className="text-gray-600 text-sm">
+                      #10b981 - Confirmations
+                    </p>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-3 py-2">
                   <div className="w-12 h-12 rounded-lg bg-[#ef4444] shadow-md"></div>
                   <div>
                     <p className="font-semibold text-gray-800">Danger Red</p>
-                    <p className="text-gray-600 text-sm">#ef4444 - Destructive actions</p>
+                    <p className="text-gray-600 text-sm">
+                      #ef4444 - Destructive actions
+                    </p>
                   </div>
                 </div>
 
@@ -263,7 +312,9 @@ export default function UserManual({ isVisible, onClose }) {
                   <div className="w-12 h-12 rounded-lg bg-[#f59e0b] shadow-md"></div>
                   <div>
                     <p className="font-semibold text-gray-800">Warning Amber</p>
-                    <p className="text-gray-600 text-sm">#f59e0b - Warnings & cautions</p>
+                    <p className="text-gray-600 text-sm">
+                      #f59e0b - Warnings & cautions
+                    </p>
                   </div>
                 </div>
               </div>
@@ -273,11 +324,12 @@ export default function UserManual({ isVisible, onClose }) {
               <h3 className="text-lg font-semibold text-gray-800 mb-3">
                 🔘 Button Styles
               </h3>
-              
+
               <p className="text-gray-600 mb-3">
-                Buttons are styled with 8 different variants for different actions:
+                Buttons are styled with 8 different variants for different
+                actions:
               </p>
-              
+
               <div className="space-y-2">
                 <div className="flex flex-wrap gap-2">
                   <button className="px-4 py-2 bg-[#0d9488] text-white rounded-lg font-medium shadow-md">
@@ -313,31 +365,49 @@ export default function UserManual({ isVisible, onClose }) {
               <h3 className="text-lg font-semibold text-gray-800 mb-3">
                 ✨ UI Features
               </h3>
-              
+
               <ul className="space-y-2 text-gray-600">
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Smooth Transitions:</strong> Animations at 0.25s (fast), 0.4s (normal), 0.6s (slow)</span>
+                  <span>
+                    <strong>Smooth Transitions:</strong> Animations at 0.25s
+                    (fast), 0.4s (normal), 0.6s (slow)
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Professional Shadows:</strong> 6-level shadow hierarchy for depth</span>
+                  <span>
+                    <strong>Professional Shadows:</strong> 6-level shadow
+                    hierarchy for depth
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Focus Rings:</strong> Clear keyboard navigation indicators</span>
+                  <span>
+                    <strong>Focus Rings:</strong> Clear keyboard navigation
+                    indicators
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Hover Effects:</strong> Interactive feedback on all clickable elements</span>
+                  <span>
+                    <strong>Hover Effects:</strong> Interactive feedback on all
+                    clickable elements
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Responsive Design:</strong> Perfect on mobile, tablet, and desktop</span>
+                  <span>
+                    <strong>Responsive Design:</strong> Perfect on mobile,
+                    tablet, and desktop
+                  </span>
                 </li>
                 <li className="flex items-start">
                   <span className="text-green-500 mr-2">✓</span>
-                  <span><strong>Accessibility:</strong> WCAG AA compliant with proper contrast</span>
+                  <span>
+                    <strong>Accessibility:</strong> WCAG AA compliant with
+                    proper contrast
+                  </span>
                 </li>
               </ul>
             </div>
@@ -472,8 +542,8 @@ export default function UserManual({ isVisible, onClose }) {
               Print System Overview
             </h3>
             <p className="text-green-700">
-              PEIPL Bill Assistant uses a professional printing system that ensures
-              your bills print perfectly on A4 paper.
+              PEIPL Bill Assistant uses a professional printing system that
+              ensures your bills print perfectly on A4 paper.
             </p>
           </div>
 
@@ -936,23 +1006,38 @@ export default function UserManual({ isVisible, onClose }) {
             <ul className="space-y-2 text-indigo-700">
               <li className="flex items-start">
                 <span className="text-lg mr-2">📂</span>
-                <span><strong>File Associations:</strong> Double-click saved bills to open them instantly</span>
+                <span>
+                  <strong>File Associations:</strong> Double-click saved bills
+                  to open them instantly
+                </span>
               </li>
               <li className="flex items-start">
                 <span className="text-lg mr-2">🎨</span>
-                <span><strong>Modern Design:</strong> New professional UI with smooth animations</span>
+                <span>
+                  <strong>Modern Design:</strong> New professional UI with
+                  smooth animations
+                </span>
               </li>
               <li className="flex items-start">
                 <span className="text-lg mr-2">🔘</span>
-                <span><strong>Better Buttons:</strong> 8 button variants with improved styling</span>
+                <span>
+                  <strong>Better Buttons:</strong> 8 button variants with
+                  improved styling
+                </span>
               </li>
               <li className="flex items-start">
                 <span className="text-lg mr-2">📱</span>
-                <span><strong>Responsive:</strong> Looks great on all devices and screen sizes</span>
+                <span>
+                  <strong>Responsive:</strong> Looks great on all devices and
+                  screen sizes
+                </span>
               </li>
               <li className="flex items-start">
                 <span className="text-lg mr-2">♿</span>
-                <span><strong>Accessible:</strong> WCAG AA compliant with keyboard navigation</span>
+                <span>
+                  <strong>Accessible:</strong> WCAG AA compliant with keyboard
+                  navigation
+                </span>
               </li>
             </ul>
           </div>
@@ -1062,83 +1147,86 @@ export default function UserManual({ isVisible, onClose }) {
   );
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+    <div className="modal-backdrop">
+      <div className="modal-content !max-w-6xl !h-[90vh]">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#0d9488] to-[#0f766e] text-white p-6 flex-shrink-0">
+        <div className="modal-header !p-6 flex-col items-stretch gap-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">📚 User Manual</h1>
-              <p className="text-white/90">
-                Complete guide to using PEIPL Bill Assistant
-              </p>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white text-2xl">📚</span>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold m-0 leading-tight">
+                  User Manual
+                </h2>
+                <p className="text-sm text-white/80 m-0">
+                  Complete guide to PEIPL Bill Assistant
+                </p>
+              </div>
             </div>
             <button
               onClick={onClose}
-              className="bg-white/20 hover:bg-white/30 text-white w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
-              title="Close Manual"
+              className="btn-icon !min-w-0 !w-10 !h-10 text-white hover:bg-white/10 rounded-full"
             >
               ✕
             </button>
           </div>
 
-          {/* Search Bar */}
-          <div className="mt-4">
+          <div className="relative">
             <input
               type="text"
-              placeholder="🔍 Search manual..."
+              placeholder="🔍 Search help sections..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="w-full !py-3 !px-4 !bg-white/10 !border-white/20 !text-white !placeholder-white/60 focus:!bg-white/20 focus:!border-white/40"
             />
           </div>
         </div>
 
-        {/* Content */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-64 bg-gray-50 border-r border-gray-200 overflow-y-auto flex-shrink-0">
-            <nav className="p-4 space-y-2">
-              {filteredSections.map((section) => (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full text-left px-4 py-3 rounded-lg transition-all duration-200 ${
-                    activeSection === section.id
-                      ? "bg-[#0d9488] text-white shadow-lg transform scale-105"
-                      : "bg-white text-gray-700 hover:bg-gray-100 hover:shadow"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{section.icon}</span>
-                    <span className="font-semibold text-sm">
-                      {section.title}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </nav>
-          </div>
+        {/* Body */}
+        <div className="modal-body !p-0 overflow-hidden">
+          <div className="manual-grid">
+            {/* Sidebar */}
+            <aside className="manual-sidebar !w-72">
+              <nav className="space-y-1">
+                {filteredSections.map((section) => (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`manual-nav-item flex items-center gap-3 !py-4 ${activeSection === section.id ? "active shadow-lg scale-[1.02]" : ""}`}
+                  >
+                    <span className="text-xl">{section.icon}</span>
+                    <span className="font-semibold">{section.title}</span>
+                  </button>
+                ))}
+              </nav>
+            </aside>
 
-          {/* Main Content */}
-          <div className="flex-1 overflow-y-auto p-8 bg-white">
-            {filteredSections.find((s) => s.id === activeSection)?.content || (
-              <div className="text-center text-gray-500 py-12">
-                <div className="text-6xl mb-4">🔍</div>
-                <p className="text-xl">No results found</p>
-                <p className="text-sm mt-2">Try a different search term</p>
-              </div>
-            )}
+            {/* Content Area */}
+            <main className="manual-content-area animate-fade-in bg-white">
+              {filteredSections.find((s) => s.id === activeSection)
+                ?.content || (
+                <div className="flex flex-col items-center justify-center h-full text-text-muted">
+                  <span className="text-6xl mb-4">🔍</span>
+                  <p className="text-lg font-medium">
+                    No sections match your search
+                  </p>
+                </div>
+              )}
+            </main>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div className="text-sm text-gray-600">
-            <span className="font-semibold">Version 2.5</span> • Last updated:
-            January 2026 • Modern UI included
+        <div className="modal-footer !justify-between !py-4">
+          <div className="text-xs text-text-muted">
+            <span className="font-bold">v2.6.0</span> • Build 2026.04.19 •
+            Modern UI
           </div>
-       
+          <button onClick={onClose} className="btn btn-primary">
+            Got it, thanks!
+          </button>
         </div>
       </div>
     </div>

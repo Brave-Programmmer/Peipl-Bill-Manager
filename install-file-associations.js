@@ -28,9 +28,22 @@ if (exePath.toLowerCase().includes("node")) {
   // This is running in development mode, try to find the actual app executable
   // Look for PEIPL Bill Assistant.exe in common installation paths
   const possiblePaths = [
-    path.join(process.env.ProgramFiles || "C:\\Program Files", "PEIPL Bill Assistant", "PEIPL Bill Assistant.exe"),
-    path.join(process.env.ProgramFilesX86 || "C:\\Program Files (x86)", "PEIPL Bill Assistant", "PEIPL Bill Assistant.exe"),
-    path.join(process.env.LOCALAPPDATA || "", "Programs", "peipl-bill-maker", "PEIPL Bill Assistant.exe"),
+    path.join(
+      process.env.ProgramFiles || "C:\\Program Files",
+      "PEIPL Bill Assistant",
+      "PEIPL Bill Assistant.exe",
+    ),
+    path.join(
+      process.env.ProgramFilesX86 || "C:\\Program Files (x86)",
+      "PEIPL Bill Assistant",
+      "PEIPL Bill Assistant.exe",
+    ),
+    path.join(
+      process.env.LOCALAPPDATA || "",
+      "Programs",
+      "peipl-bill-maker",
+      "PEIPL Bill Assistant.exe",
+    ),
     path.join(__dirname, "dist", "PEIPL Bill Assistant.exe"),
     path.join(__dirname, "out", "PEIPL Bill Assistant.exe"),
   ];
@@ -45,8 +58,12 @@ if (exePath.toLowerCase().includes("node")) {
   }
 
   if (!foundPath) {
-    console.warn("⚠️  Could not locate app executable. Using current Node executable as fallback.");
-    console.log("   Note: This will not work properly. Please install the app first.");
+    console.warn(
+      "⚠️  Could not locate app executable. Using current Node executable as fallback.",
+    );
+    console.log(
+      "   Note: This will not work properly. Please install the app first.",
+    );
     // Continue with Node path as fallback for testing
   } else {
     exePath = foundPath;
@@ -63,6 +80,8 @@ if (!fs.existsSync(exePath)) {
 }
 
 // Commands to set up file associations
+// NOTE: We only associate .peiplbill files to avoid hijacking system-wide .json handling
+// .json files should remain associated with their default applications (VS Code, browsers, etc.)
 const commands = [
   {
     name: "Set file type",
@@ -72,10 +91,8 @@ const commands = [
     name: "Associate .peiplbill files",
     command: "assoc .peiplbill=PEIPLBillMaker",
   },
-  {
-    name: "Associate .json files",
-    command: "assoc .json=PEIPLBillMaker",
-  },
+  // REMOVED: Global .json association to prevent system-wide hijacking
+  // Users can still open .json files via "Open With" or drag-and-drop
 ];
 
 let completed = 0;

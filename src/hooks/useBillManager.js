@@ -1,4 +1,11 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
+import {
+  calculateSubtotal,
+  calculateTotalCGST,
+  calculateTotalSGST,
+  calculateTotal,
+} from "../utils/billCalculations";
+import { getNextBillNumber } from "../utils/idGenerator";
 
 export function useBillManager() {
   const [billData, setBillData] = useState({
@@ -40,18 +47,11 @@ export function useBillManager() {
     pan: "AADCP2938G",
   });
 
-  // Initialize bill number
+  // Initialize bill number (client-side only)
   useEffect(() => {
-    const today = new Date();
-    const month = today.getMonth() + 1;
-    const year = today.getFullYear();
-    const fyStart = month <= 3 ? year - 1 : year;
-    const fyEnd = fyStart + 1;
-    const fyString = `${fyStart.toString().slice(-2)}${fyEnd.toString().slice(-2)}`;
-
     setBillData((prev) => ({
       ...prev,
-      billNumber: `PEIPLCH${fyString}/01`,
+      billNumber: getNextBillNumber(),
     }));
   }, []);
 
@@ -79,32 +79,20 @@ export function useBillManager() {
   }, [companyInfo]);
 
   const calculateSubtotal = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const amount = parseFloat(item.amount) || 0;
-      return sum + amount;
-    }, 0);
+    return calculateSubtotal(billData.items);
   }, [billData.items]);
 
   const calculateTotalCGST = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const cgstAmount = parseFloat(item.cgstAmount) || 0;
-      return sum + cgstAmount;
-    }, 0);
+    return calculateTotalCGST(billData.items);
   }, [billData.items]);
 
   const calculateTotalSGST = useMemo(() => {
-    if (!billData.items || !Array.isArray(billData.items)) return 0;
-    return billData.items.reduce((sum, item) => {
-      const sgstAmount = parseFloat(item.sgstAmount) || 0;
-      return sum + sgstAmount;
-    }, 0);
+    return calculateTotalSGST(billData.items);
   }, [billData.items]);
 
   const calculateTotal = useMemo(() => {
-    return calculateSubtotal + calculateTotalCGST + calculateTotalSGST;
-  }, [calculateSubtotal, calculateTotalCGST, calculateTotalSGST]);
+    return calculateTotal(billData.items);
+  }, [billData.items]);
 
   return {
     billData,

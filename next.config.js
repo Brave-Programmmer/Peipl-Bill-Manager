@@ -4,64 +4,17 @@ const nextConfig = {
   assetPrefix: "./", // makes assets load relative to index.html
   trailingSlash: false,
   basePath: "", // avoid wrong routing in file://
-  
+
   // Image Optimization
   images: {
     unoptimized: true,
   },
-
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Webpack & Bundle Optimization
   webpack: (config, { isServer }) => {
-    config.optimization = {
-      ...config.optimization,
-      splitChunks: {
-        chunks: "all",
-        cacheGroups: {
-          default: false,
-          vendors: false,
-          // React vendor chunk
-          react: {
-            name: "chunk-react",
-            test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
-            priority: 40,
-            reuseExistingChunk: true,
-            enforce: true,
-          },
-          // UI Library chunks
-          ui: {
-            name: "chunk-ui",
-            test: /[\\/]node_modules[\\/](react-hot-toast|react-icons|react-window)[\\/]/,
-            priority: 30,
-            reuseExistingChunk: true,
-            enforce: true,
-          },
-          // DnD Kit chunks
-          dnd: {
-            name: "chunk-dnd",
-            test: /[\\/]node_modules[\\/](@dnd-kit)[\\/]/,
-            priority: 25,
-            reuseExistingChunk: true,
-            enforce: true,
-          },
-          // Utilities chunks
-          utils: {
-            name: "chunk-utils",
-            test: /[\\/]node_modules[\\/](jspdf|html2canvas|mathjs)[\\/]/,
-            priority: 20,
-            reuseExistingChunk: true,
-            enforce: true,
-          },
-          // Shared component chunks
-          common: {
-            minChunks: 2,
-            priority: 10,
-            reuseExistingChunk: true,
-            name: "chunk-common",
-          },
-        },
-      },
-    };
-
+    // Basic webpack config, avoiding overriding splitChunks which can break Next.js internal routing
     return config;
   },
 
@@ -91,4 +44,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

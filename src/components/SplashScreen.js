@@ -17,14 +17,14 @@ export default function SplashScreen({ onComplete }) {
 
   useEffect(() => {
     setShow(true);
-    
+
     // Simulate loading steps with progress
     const loadingSteps = [
       { progress: 20, tip: "Loading components..." },
       { progress: 40, tip: "Preparing workspace..." },
       { progress: 60, tip: "Loading templates..." },
       { progress: 80, tip: "Finalizing setup..." },
-      { progress: 100, tip: "Ready to launch!" }
+      { progress: 100, tip: "Ready to launch!" },
     ];
 
     let currentStep = 0;
@@ -81,7 +81,7 @@ export default function SplashScreen({ onComplete }) {
             <span>{loadingProgress}%</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-            <div 
+            <div
               className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-300 ease-out"
               style={{ width: `${loadingProgress}%` }}
             />

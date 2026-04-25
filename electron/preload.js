@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // File operations
   openFile: () => ipcRenderer.invoke("open-file-dialog"),
   saveFile: (billData) => ipcRenderer.invoke("save-file-dialog", billData),
+  updateExistingFile: (billData, filePath) =>
+    ipcRenderer.invoke("update-existing-file", billData, filePath),
   openFileFromCommand: (filePath) =>
     ipcRenderer.invoke("open-file-from-command", filePath),
 
@@ -22,6 +24,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("open-file", (event, payload) => callback(payload)),
   onOpenFileError: (callback) =>
     ipcRenderer.on("open-file-error", (event, payload) => callback(payload)),
+  onOpenFileRaw: (callback) =>
+    ipcRenderer.on("open-file-raw", (event, payload) => callback(payload)),
 
   // Remove listeners
   removeAllListeners: (channel) => {
@@ -51,7 +55,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("window-unmaximized", callback);
   },
 
- 
   // Bill folder tracking
   selectBillFolder: () => ipcRenderer.invoke("select-bill-folder"),
   scanFolderStructure: (folderPath) =>
@@ -65,11 +68,42 @@ contextBridge.exposeInMainWorld("electronAPI", {
   scanBillsInFolders: (subfolderPaths) =>
     ipcRenderer.invoke("scan-bills-in-folders", subfolderPaths),
   scanGstSubmittedFolder: (gstSubmittedFolderPath, billFilePaths) =>
-    ipcRenderer.invoke("scan-gst-submitted-folder", gstSubmittedFolderPath, billFilePaths),
-  copyBillToGstSubmitted: (sourceFilePath, gstSubmittedFolderPath, submissionMonth) =>
-    ipcRenderer.invoke("copy-bill-to-gst-submitted", sourceFilePath, gstSubmittedFolderPath, submissionMonth),
+    ipcRenderer.invoke(
+      "scan-gst-submitted-folder",
+      gstSubmittedFolderPath,
+      billFilePaths,
+    ),
+  copyBillToGstSubmitted: (
+    sourceFilePath,
+    gstSubmittedFolderPath,
+    submissionMonth,
+  ) =>
+    ipcRenderer.invoke(
+      "copy-bill-to-gst-submitted",
+      sourceFilePath,
+      gstSubmittedFolderPath,
+      submissionMonth,
+    ),
 
   // Delete bill from GST submitted folder
   deleteBillFromGstSubmitted: (filePath) =>
     ipcRenderer.invoke("delete-bill-from-gst-submitted", filePath),
+
+  // File locking and recovery
+  fileParsed: (filePath, success, data, error, warnings) =>
+    ipcRenderer.invoke("file-parsed", {
+      filePath,
+      success,
+      data,
+      error,
+      warnings,
+    }),
+  closeFile: (filePath) => ipcRenderer.invoke("close-file", filePath),
+  isFileLocked: (filePath) => ipcRenderer.invoke("is-file-locked", filePath),
+  recoverFile: (filePath, corruptedData, recoveredData) =>
+    ipcRenderer.invoke("recover-file", {
+      filePath,
+      corruptedData,
+      recoveredData,
+    }),
 });

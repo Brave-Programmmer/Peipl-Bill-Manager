@@ -1,0 +1,462 @@
+{
+  "title": "Electron.js Desktop App Development",
+  "description": "Learn to build cross‑platform desktop applications with Electron.js. The course walks you through installing Electron, the main‑ and renderer‑process model, IPC, security, native OS integration, data persistence, auto‑updates, packaging, code‑signing and publishing. By the end you’ll be able to ship production‑grade desktop apps using plain JavaScript (or any front‑end framework) with Electron.",
+  "icon": "desktop",
+  "language": "javascript",
+  "difficulty": "Intermediate",
+  "duration": "30 hours",
+  "lessonCount": 28,
+  "dataFile": "",
+  "comingSoon": false,
+  "lessons": [
+    {
+      "id": "lesson-1",
+      "title": "What is Electron?",
+      "duration": "8 mins",
+      "content": "# What is Electron?\n\nElectron combines **Chromium** (the browser engine) and **Node.js** (the JavaScript runtime) into a single binary, letting you write desktop apps with web technologies.\n\n* **Main process** – runs Node, controls windows, menus, file‑system, etc.\n* **Renderer process** – a Chromium tab that displays your UI (HTML/CSS/JS).\n* Communication between them happens via **IPC**.\n\n---\n#### Quick hello‑world diagram\n```\n┌───────────────┐      ┌───────────────────┐\n│   Main (Node) │─────►│   Renderer (HTML) │\n│  BrowserWindow│◄─────│   Chromium Engine │\n└───────────────┘      └───────────────────┘\n```\n",
+      "keyPoints": [
+        "Electron bundles Chromium + Node.js into one runtime.",
+        "Two process types: **main** (Node) and **renderer** (Chromium).",
+        "Inter‑process communication (IPC) connects them.",
+        "Write UI with familiar web tech – HTML, CSS, JavaScript."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-2",
+      "title": "Installing Node, npm & Electron",
+      "duration": "7 mins",
+      "content": "# Installing Node, npm & Electron\n\n1️⃣ **Node & npm** – download from https://nodejs.org (LTS version). Verify:\n```bash\nnode -v   # e.g. v20.8.0\nnpm -v    # e.g. 10.5.0\n```\n2️⃣ **Create a project folder** and initialise:\n```bash\nmkdir my‑app && cd my‑app\nnpm init -y   # creates a bare package.json\n```\n3️⃣ **Add Electron as a dev‑dependency**:\n```bash\nnpm install --save-dev electron\n```\n4️⃣ **Add a start script** to `package.json`:\n```json\n\"scripts\": { \"start\": \"electron .\" }\n```\nNow `npm start` will launch Electron.\n",
+      "keyPoints": [
+        "Node.js is required – Electron ships with its own copy of Node.",
+        "Install Electron locally (`--save-dev`) to keep the project portable.",
+        "`npm start` runs `electron .`, which looks for `main` entry in `package.json`.",
+        "All further commands (packaging, building) use the same local Electron binary."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-3",
+      "title": "Electron Architecture – Main vs Renderer",
+      "duration": "9 mins",
+      "content": "# Electron Architecture – Main vs Renderer\n\n* **Main process** – a regular Node.js environment. It creates and manages windows, handles OS‑level APIs (menus, dialogs, auto‑updates) and can run any npm package.\n* **Renderer process** – a Chromium web page. Each `BrowserWindow` gets its own renderer. It cannot directly require Node modules unless you enable `nodeIntegration` (which is **not recommended** for security).\n* **Preload scripts** sit between the two. They run in a tiny isolated context, expose a safe API to the renderer via `contextBridge`.\n\n---\n#### Visual overview\n```mermaid\nflowchart LR\n    Main[Main Process (Node)] -->|creates| Browser[BrowserWindow]\n    Browser -->|loads| Renderer[Renderer Process (Chromium)]\n    Main -->|exposes via| Preload[Preload Script]\n    Renderer -->|calls| Bridge[contextBridge API]\n```\n",
+      "keyPoints": [
+        "Main process runs Node, renderer runs Chromium.",
+        "Never enable `nodeIntegration` in production – use a preload script instead.",
+        "`contextBridge` lets you expose a **whitelisted** API to the UI safely.",
+        "Each window has its own renderer; they do **not** share global variables."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-4",
+      "title": "Your First Electron App – Hello World",
+      "duration": "10 mins",
+      "content": "# Your First Electron App – Hello World\n\nCreate two files:\n\n**main.js** (main process)\n```js\nconst { app, BrowserWindow } = require('electron');\n\nfunction createWindow(){\n  const win = new BrowserWindow({ width:800, height:600 });\n  win.loadFile('index.html');\n}\n\napp.whenReady().then(createWindow);\n\napp.on('window-all-closed', () => {\n  if (process.platform !== 'darwin') app.quit();\n});\n```\n\n**index.html** (renderer)\n```html\n<!doctype html>\n<html>\n<head><meta charset=\"utf-8\"><title>Hello Electron</title></head>\n<body>\n  <h1>Hello, Electron!</h1>\n  <p>This window is rendered by Chromium.</p>\n</body>\n</html>\n```\nAdd `\"main\": \"main.js\"` to `package.json` and run `npm start`. You should see a native desktop window showing the HTML page.\n",
+      "keyPoints": [
+        "`app.whenReady()` waits for Electron to finish initialisation.",
+        "`BrowserWindow` creates a native window that loads local HTML.",
+        "`window-all-closed` quits the app on all platforms except macOS (standard behaviour).",
+        "The HTML UI is completely separate from the Node main process."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-5",
+      "title": "Project Structure & npm Scripts",
+      "duration": "8 mins",
+      "content": "# Project Structure & npm Scripts\n\nA common layout:\n```\nmy-app/\n├─ src/            # renderer source (HTML/JS/CSS or a framework)\n│   ├─ index.html\n│   └─ renderer.js\n├─ main/           # main‑process code\n│   └─ main.js\n├─ preload/        # preload scripts (secure bridge)\n│   └─ bridge.js\n├─ package.json\n└─ .gitignore\n```\nAdd helpful scripts:\n```json\n\"scripts\": {\n  \"start\": \"electron .\",\n  \"dev\": \"concurrently \\\"npm:watch-main\\\" \\\"npm:watch-renderer\\\"\",\n  \"watch-main\": \"nodemon --watch main --exec electron .\",\n  \"watch-renderer\": \"vite --config vite.renderer.config.js\",\n  \"build\": \"electron-builder\"\n}\n```\n`concurrently` and `nodemon` are optional helpers that restart the app on changes.\n",
+      "keyPoints": [
+        "Separate **main**, **renderer**, and **preload** code into distinct folders.",
+        "Use npm scripts to automate development (`npm run dev`).",
+        "A `watch‑renderer` script can run a bundler (Vite, Webpack) for hot‑reloading UI.",
+        "Keep `package.json` clean – expose only what the app needs."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-6",
+      "title": "Creating BrowserWindows – Options & Features",
+     "duration": "9 mins",
+      "content": "# Creating BrowserWindows – Options & Features\n\n`BrowserWindow` accepts an options object that controls size, frame, transparency, security, etc.\n```js\nconst win = new BrowserWindow({\n  width: 1024,\n  height: 768,\n  title: \"My Electron App\",\n  show: false,               // create hidden, show later for smooth startup\n  webPreferences: {\n    preload: path.join(__dirname, '../preload/bridge.js'),\n    contextIsolation: true,   // must be true for security\n    nodeIntegration: false,\n    enableRemoteModule: false\n  }\n});\n```\nCommon useful flags:\n* `transparent: true` – frameless windows.\n* `alwaysOnTop: true` – stay above other apps.\n* `resizable: false` – fixed‑size UI.\n\nShow the window after it’s ready:\n```js\nwin.once('ready‑to‑show', () => win.show());\n```\n",
+      "keyPoints": [
+        "`webPreferences` are the security gate‑keeper – always enable `contextIsolation` and disable `nodeIntegration`.",
+        "Create the window **hidden** (`show:false`) then reveal it on `ready-to-show` for a smooth experience.",
+        "Use `preload` to point at a bridge script that will be loaded before any renderer code."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-7",
+      "title": "Loading Local HTML, Remote URLs & Custom Protocols",
+      "duration": "8 mins",
+      "content": "# Loading Local HTML, Remote URLs & Custom Protocols\n\n**Local file** – most common:\n```js\nwin.loadFile('src/index.html');\n```\n\n**Remote URL** – be careful with security (CSP, `webSecurity`):\n```js\nwin.loadURL('https://app.example.com');\n```\n\n**Custom protocol** – useful for bundlers (e.g., `app://`):\n```js\napp.whenReady().then(() => {\n  protocol.registerFileProtocol('app', (request, callback) => {\n    const url = request.url.substr(6); // strip \"app://\"\n    callback({ path: path.normalize(`${__dirname}/${url}`) });\n  });\n  win.loadURL('app://index.html');\n});\n```\n\nWhen loading remote content, disable Node integration and enforce `Content‑Security‑Policy` headers.\n",
+      "keyPoints": [
+        "`loadFile` loads a local HTML file relative to the app's directory.",
+        "`loadURL` can point to any HTTP(S) address but must be used with strict CSP.",
+        "Custom protocols (`protocol.registerFileProtocol`) let you treat bundled assets like files."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-8",
+      "title": "Menus, Application Menu & Tray Icons",
+      "duration": "10 mins",
+      "content": "# Menus, Application Menu & Tray Icons\n\nCreate a native menu:\n```js\nconst { Menu } = require('electron');\nconst template = [\n  {\n    label: 'File',\n    submenu: [\n      { role: 'quit' }\n    ]\n  },\n  {\n    label: 'Edit',\n    submenu: [\n      { role: 'undo' },\n      { role: 'redo' },\n      { type: 'separator' },\n      { role: 'copy' },\n      { role: 'paste' }\n    ]\n  }\n];\nconst menu = Menu.buildFromTemplate(template);\nMenu.setApplicationMenu(menu);\n```\n\n**Tray (system‑level icon)**:\n```js\nconst { Tray, nativeImage } = require('electron');\nlet tray = null;\napp.whenReady().then(() => {\n  const icon = nativeImage.createFromPath('assets/tray.png');\n  tray = new Tray(icon);\n  tray.setToolTip('My Electron App');\n  tray.setContextMenu(Menu.buildFromTemplate([\n    { label: 'Show', click: () => win.show() },\n    { label: 'Quit', click: () => app.quit() }\n  ]));\n});\n```\n",
+      "keyPoints": [
+        "`Menu` and `MenuItem` let you build native menus that work on macOS, Windows and Linux.",
+        "Use the `role` property for common actions (`quit`, `undo`, `copy`, …).",
+        "`Tray` creates a persistent icon in the system tray / menu bar."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-9",
+      "title": "Inter‑process Communication (IPC)",
+      "duration": "12 mins",
+      "content": "# Inter‑process Communication (IPC)\n\nElectron ships two IPC modules:\n* **ipcMain** – used in the **main** process.\n* **ipcRenderer** – used in a **renderer** (via the preload bridge).\n\n### Basic request/response pattern\n**preload/bridge.js**\n```js\nconst { contextBridge, ipcRenderer } = require('electron');\ncontextBridge.exposeInMainWorld('api', {\n  getAppVersion: () => ipcRenderer.invoke('app:getVersion')\n});\n```\n**main.js**\n```js\nconst { ipcMain, app } = require('electron');\nipcMain.handle('app:getVersion', () => app.getVersion());\n```\n**renderer.js** (runs in the page)\n```js\ndocument.getElementById('ver').innerText = window.api.getAppVersion();\n```\n\n### Sending a fire‑and‑forget message\n```js\n// renderer\nwindow.api.send('log', 'User clicked button');\n// main\nipcMain.on('log', (e, msg) => console.log('[Renderer]', msg));\n```\nUse `invoke/handle` for request‑response (Promise‑based) and `send/on` for one‑way messages.\n",
+      "keyPoints": [
+        "`ipcRenderer.invoke` → `ipcMain.handle` returns a **Promise** (clean async API).",
+        "`ipcRenderer.send` → `ipcMain.on` is fire‑and‑forget (no response).",
+        "Never expose the raw `ipcRenderer` object; use a **preload bridge** with a whitelisted API.",
+        "All messages are serialized; you can pass JSON‑compatible data only."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-10",
+      "title": "Using Node.js APIs in the Main Process",
+      "duration": "9 mins",
+      "content": "# Using Node.js APIs in the Main Process\n\nBecause the main process runs **plain Node**, you can require any built‑in or third‑party module.\n\n### Example: File system access\n```js\nconst fs = require('fs').promises;\nasync function readConfig(){\n  const data = await fs.readFile(path.join(app.getPath('userData'), 'config.json'), 'utf‑8');\n  return JSON.parse(data);\n}\n```\n### Example: Child processes\n```js\nconst { exec } = require('child_process');\nexec('git --version', (err, stdout) => {\n  if (err) return console.error(err);\n  console.log('Git version:', stdout.trim());\n});\n```\n### Example: Native modules\nInstall a library that needs compilation (e.g., `sharp` for image processing) and use it directly in the main process.\n```js\nconst sharp = require('sharp');\nsharp('input.png').resize(200).toFile('output.png');\n```\nRemember: **Never** expose these Node APIs directly to the renderer – always go through a preload bridge.\n",
+      "keyPoints": [
+        "The main process can require any npm package, including native addons.",
+        "Use async/await with the `fs.promises` API for clean file handling.",
+        "Child processes (`exec`, `spawn`) let you run external commands.",
+        "All heavy or privileged work should stay in the main process."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-11",
+      "title": "File System Access – Reading & Writing",
+      "duration": "10 mins",
+      "content": "# File System Access – Reading & Writing\n\nElectron provides `app.getPath(name)` to locate OS‑specific folders (`userData`, `desktop`, `documents`).\n```js\nconst { app } = require('electron');\nconst dataPath = app.getPath('userData');\n```\n**Read a file** (async):\n```js\nconst fs = require('fs').promises;\nasync function loadNotes(){\n  const file = path.join(dataPath, 'notes.json');\n  try {\n    const raw = await fs.readFile(file, 'utf-8');\n    return JSON.parse(raw);\n  } catch(e){\n    return [];\n  }\n}\n```\n**Write a file**:\n```js\nasync function saveNotes(notes){\n  const file = path.join(dataPath, 'notes.json');\n  await fs.writeFile(file, JSON.stringify(notes, null, 2), 'utf-8');\n}\n```\n**Show a dialog** before overwriting:\n```js\nconst { dialog } = require('electron');\nconst { response } = await dialog.showMessageBox({\n  type: 'question',\n  buttons: ['Cancel', 'Overwrite'],\n  defaultId: 1,\n  title: 'Confirm',\n  message: 'Overwrite existing file?'\n});\nif (response === 1) await saveNotes(notes);\n```\n",
+      "keyPoints": [
+        "`app.getPath('userData')` gives a safe folder for persistent app data.",
+        "Use the **Promise‑based `fs` API** for async reads/writes.",
+        "Always handle errors – the file may not exist on first run.",
+        "Show a native **dialog** (`dialog.showMessageBox`) before destructive actions."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-12",
+      "title": "Preload Scripts & Secure Context Bridge",
+      "duration": "12 mins",
+      "content": "# Preload Scripts & Secure Context Bridge\n\nA **preload script** runs **before** the renderer loads any web code, in a privileged yet isolated world.\n```js\n// preload/bridge.js\nconst { contextBridge, ipcRenderer } = require('electron');\n\n// expose a minimal, typed API\ncontextBridge.exposeInMainWorld('electronAPI', {\n  // async request → returns a Promise\n  getVersion: () => ipcRenderer.invoke('app:getVersion'),\n\n  // fire‑and‑forget\n  logMessage: (msg) => ipcRenderer.send('log', msg),\n\n  // subscribe to events from main\n  onUpdateAvailable: (callback) => ipcRenderer.on('update:available', (e, info) => callback(info))\n});\n```\nIn **main.js** you must enable the preload path:\n```js\nnew BrowserWindow({\n  webPreferences: {\n    preload: path.join(__dirname, '../preload/bridge.js'),\n    contextIsolation: true,\n    nodeIntegration: false\n  }\n});\n```\nNow the renderer can safely call:\n```js\ndocument.getElementById('ver').innerText = await window.electronAPI.getVersion();\nwindow.electronAPI.logMessage('App launched');\n```\nNever expose the full `ipcRenderer` object; only expose **specific, typed functions**.\n",
+      "keyPoints": [
+        "`contextBridge.exposeInMainWorld` creates a **whitelisted** API that the page can use.",
+        "Keep `nodeIntegration` **false** and `contextIsolation` **true** for security.",
+        "All IPC calls become **Promise‑based** (`invoke`) or simple event listeners (`on`).",
+        "Preload scripts are the only place where Node APIs can be mixed with the renderer."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-13",
+      "title": "Security Best Practices",
+      "duration": "10 mins",
+      "content": "# Security Best Practices\n\n| Recommendation | Why it matters |\n|----------------|----------------|\n| **Enable `contextIsolation`** | Prevents the page from accessing Node globals.\n| **Disable `nodeIntegration`** | Stops arbitrary scripts from requiring Node modules.\n| **Use a preload bridge** | Exposes only the API you intend.\n| **Set a strong `Content‑Security‑Policy`** | Blocks XSS and unwanted remote scripts.\n| **Validate all IPC data** | An attacker could craft a malicious message.\n| **Enable `sandbox: true` for renderers** (optional) | Runs the renderer in a Chromium sandbox, further limiting privilege.\n| **Avoid `eval`/`new Function`** | Execution of arbitrary code is a common injection vector.\n| **Sign your app** (macOS & Windows) | Prevents tampering and improves user trust.\n\n**Example CSP header in renderer HTML**\n```html\n<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;\">\n```\n",
+      "keyPoints": [
+        "`contextIsolation` and `nodeIntegration` are the two most important flags.",
+        "Never trust data coming from the renderer – always validate in the main process.",
+        "A strict CSP eliminates many XSS avenues even if an attacker injects HTML.",
+        "Code‑signing is required for macOS notarization and Windows SmartScreen."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-14",
+      "title": "Native Dialogs – Open & Save Files",
+      "duration": "9 mins",
+      "content": "# Native Dialogs – Open & Save Files\n\nElectron's `dialog` module opens OS‑native file/folder pickers.\n```js\nconst { dialog } = require('electron');\n\n// Open a file picker (allow multiple)\nasync function pickFiles(){\n  const { canceled, filePaths } = await dialog.showOpenDialog({\n    title: 'Select a file',\n    properties: ['openFile', 'multiSelections']\n  });\n  if (!canceled) return filePaths; // array of selected paths\n}\n\n// Save dialog\nasync function pickSave(){\n  const { canceled, filePath } = await dialog.showSaveDialog({\n    title: 'Save as',\n    defaultPath: 'untitled.txt'\n  });\n  if (!canceled) return filePath;\n}\n```\nYou can call these functions from the **main** process or via the **preload bridge**.\n",
+      "keyPoints": [
+        "`dialog.showOpenDialog` returns `{canceled, filePaths}`.",
+        "`dialog.showSaveDialog` returns `{canceled, filePath}` – the path the user chose.",
+        "All dialog calls must be made from the **main** process (or via IPC).",
+        "You can customize filters (`{ name: 'Images', extensions: ['png','jpg'] }`)."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-15",
+      "title": "System Notifications",
+      "duration": "8 mins",
+      "content": "# System Notifications\n\nElectron provides the **Notification** API (same as the browser) but works in the main process and can show native OS notifications.\n```js\nfunction notify(title, body){\n  new Notification({ title, body }).show();\n}\n\nnotify('Download complete', 'Your file has been saved to ~/Downloads');\n```\nOn macOS you can add `actions` (buttons) and on Windows you can set `urgency`.\n\nIf you need richer notifications (progress bar, images) use the `electron-notify` or `node-notifier` libraries.\n",
+      "keyPoints": [
+        "Notifications are created via the **`Notification`** class (main process).",
+        "They automatically respect the OS's Do‑Not‑Disturb settings.",
+        "You can add **action buttons** on macOS/Windows.",
+        "Remember to request permission on macOS for sending notifications."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-16",
+      "title": "Integrating Front‑End Frameworks (React/Vue)",
+      "duration": "12 mins",
+      "content": "# Integrating Front‑End Frameworks (React/Vue)\n\nElectron does not care which UI library you use – just bundle it as you would for a normal web app.\n\n### Using Vite with React\n```bash\nnpm create vite@latest renderer -- --template react\ncd renderer\nnpm install\nnpm run build   # produces dist/\n```\nIn **main.js** point the window at the built `index.html`:\n```js\nwin.loadFile(path.join(__dirname, '../renderer/dist/index.html'));\n```\n### Using Vite with Vue\n```bash\nnpm create vite@latest renderer -- --template vue\n```\n**Hot‑reload during development** – run Vite dev server and point the window to `http://localhost:5173`.\n```js\nwin.loadURL('http://localhost:5173');\n```\nRemember to **disable `nodeIntegration`** and use a **preload bridge** for any privileged calls.\n",
+      "keyPoints": [
+        "Bundle the UI with any tool (Vite, Webpack, Parcel) – output static files.",
+        "During development you can load the dev server URL for hot‑reloading.",
+        "Production builds are simply loaded with `loadFile` from the `dist` folder.",
+        "All communication between UI and OS must go through the preload bridge."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-17",
+      "title": "Bundling Renderer Code – Vite & Webpack",
+      **duration**: "10 mins",
+      "content": "# Bundling Renderer Code – Vite & Webpack\n\n**Vite** (fast dev server + Rollup build) example `vite.renderer.config.js`:\n```js\nimport { defineConfig } from 'vite';\nexport default defineConfig({\n  root: 'src',\n  build: {\n    outDir: '../dist',\n    emptyOutDir: true,\n    rollupOptions: {\n      input: 'src/index.html'\n    }\n  }\n});\n```\nRun `vite` for dev, `vite build` for production.\n\n**Webpack** example (simplified):\n```js\n// webpack.renderer.config.js\nconst path = require('path');\nmodule.exports = {\n  mode: 'production',\n  entry: './src/renderer.js',\n  output: { filename: 'renderer.js', path: path.resolve(__dirname, 'dist') },\n  module: { rules: [{ test: /\\.css$/, use: ['style-loader','css-loader'] }] }\n};\n```\nBoth tools generate a single JS bundle that you load via a `<script>` tag in `index.html`.\n",
+      "keyPoints": [
+        "Vite uses native ES modules for lightning‑fast hot‑reload; Webpack is more configurable for complex pipelines.",
+        "Output the bundle to a folder the Electron main process can load (`dist/`).",
+        "Configure the bundler to **exclude Electron built‑ins** (`externals` in Webpack).",
+        "Keep source maps (`devtool: 'source-map'`) for easier debugging."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-18",
+      "title": "State Management Across Processes",
+      "duration": "10 mins",
+      "content": "# State Management Across Processes\n\nBecause the UI lives in a separate renderer, you need a strategy to keep data in sync.\n\n### Option 1: Central store in the Main process\n* Store app‑wide state in a plain JavaScript object.\n* Expose `getState` / `setState` via the preload bridge.\n* Emit change events to renderers when the state updates.\n```js\n// preload/bridge.js\ncontextBridge.exposeInMainWorld('store', {\n  get: () => ipcRenderer.invoke('store:get'),\n  set: (key, value) => ipcRenderer.send('store:set', key, value),\n  onChange: (cb) => ipcRenderer.on('store:changed', (e, newState) => cb(newState))\n});\n```\n\n### Option 2: Use a lightweight library (e.g., **Redux**, **MobX**) inside the renderer only, and persist to disk via IPC when needed.\n\n### Option 3: **electron-store** – a ready‑made persistent store that lives in the main process and offers a simple API.\n```js\nconst Store = require('electron-store');\nconst store = new Store();\nstore.set('user.name', 'Bob');\nconsole.log(store.get('user.name'));\n```\n",
+      "keyPoints": [
+        "Avoid keeping duplicate copies of state in multiple renderers – use a **single source of truth** in the main process.",
+        "`ipcRenderer.invoke` is perfect for *get* operations, while `send` works for *set* without waiting for a response.",
+        "Libraries like **electron-store** simplify persistence (JSON file in userData).",
+        "Emit change events (`store:changed`) so UI updates automatically."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-19",
+      "title": "Data Persistence – electron-store, SQLite & LowDB",
+      "duration": "11 mins",
+      "content": "# Data Persistence – electron-store, SQLite & LowDB\n\n### electron-store (key/value JSON)\n```bash\nnpm install electron-store\n```\n```js\nconst Store = require('electron-store');\nconst store = new Store();\nstore.set('settings.theme', 'dark');\nconsole.log(store.get('settings.theme'));\n```\nData is saved in a plain JSON file inside `app.getPath('userData')`.\n\n### SQLite (via better‑sqlite3)\n```bash\nnpm install better-sqlite3\n```\n```js\nconst Database = require('better-sqlite3');\nconst db = new Database(path.join(app.getPath('userData'), 'app.db'));\ndb.exec('CREATE TABLE IF NOT EXISTS notes (id INTEGER PRIMARY KEY, title TEXT, body TEXT)');\nfunction addNote(title, body){\n  const stmt = db.prepare('INSERT INTO notes (title, body) VALUES (?, ?)');\n  return stmt.run(title, body).lastInsertRowid;\n}\n```\nSQLite is great for relational data and fast queries.\n\n### LowDB (tiny JSON database)\n```bash\nnpm install lowdb\n```\n```js\nconst { Low, JSONFile } = require('lowdb');\nconst adapter = new JSONFile(path.join(app.getPath('userData'), 'db.json'));\nconst db = new Low(adapter);\nawait db.read();\ndb.data ||= { notes: [] };\ndb.data.notes.push({ id: Date.now(), text: 'Hello' });\nawait db.write();\n```\nLowDB is perfect for small prototype apps.\n",
+      "keyPoints": [
+        "`electron-store` offers a simple key/value store with automatic JSON serialization.",
+        "SQLite provides a powerful relational DB – use `better-sqlite3` for synchronous API or `sqlite3` for async.",
+        "`lowdb` is a tiny JSON‑file DB useful for prototypes or settings.",
+        "All persistence logic should stay in the **main** process for security."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-20",
+      "title": "Auto‑Updates with electron‑updater",
+      "duration": "13 mins",
+      "content": "# Auto‑Updates with electron‑updater\n\n**electron‑updater** (part of **electron‑builder**) abstracts away the platform‑specific update mechanisms (Squirrel on Windows, NSIS, macOS app‑store, etc.).\n\n### Install\n```bash\nnpm install electron-updater\n```\n### Basic usage in `main.js`\n```js\nconst { autoUpdater } = require('electron-updater');\n\nautoUpdater.checkForUpdatesAndNotify();\n\nautoUpdater.on('update-available', info => {\n  console.log('Update available', info.version);\n});\nautoUpdater.on('update-downloaded', info => {\n  const choice = dialog.showMessageBoxSync({\n    type: 'question',\n    buttons: ['Later', 'Install now'],\n    defaultId: 1,\n    message: `Version ${info.version} downloaded. Install now?`\n  });\n  if (choice === 1) autoUpdater.quitAndInstall();\n});\n```\n### Packaging for updates\n* Use **electron‑builder** to create a **GitHub release** (or any server) that hosts the `*.exe`, `*.dmg`, `*.AppImage` files.\n* Set the `publish` field in `package.json`:\n```json\n\"build\": {\n  \"publish\": [{ \"provider\": \"github\", \"owner\": \"myuser\", \"repo\": \"my‑app\" }]\n}\n```\nNow each new release is automatically detected by `autoUpdater`.\n",
+      "keyPoints": [
+        "`electron-updater` works with **electron-builder** to handle all platforms.",
+        "`autoUpdater.checkForUpdatesAndNotify()` checks for a new version and shows a notification.\n* Listen for `update‑available`, `update‑downloaded`, `error` events.",
+        "Never expose the updater API directly to the renderer – wrap it in the preload bridge.",
+        "Code‑sign your binaries; unsigned apps will be rejected by macOS Gatekeeper."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-21",
+      "title": "Packaging & Distribution – electron‑builder",
+      "duration": "12 mins",
+      "content": "# Packaging & Distribution – electron‑builder\n\n**electron‑builder** is the most popular tool for creating installers for Windows (`nsis`), macOS (`dmg`, `pkg`) and Linux (`AppImage`, `deb`).\n\n### Install\n```bash\nnpm install --save-dev electron-builder\n```\n### Add build config to `package.json`\n```json\n\"build\": {\n  \"appId\": \"com.example.myapp\",\n  \"productName\": \"MyApp\",\n  \"directories\": { \"output\": \"dist\" },\n  \"files\": [ \"dist/**/*\", \"main/**/*\", \"preload/**/*\", \"package.json\" ],\n  \"mac\": { \"target\": \"dmg\" },\n  \"win\": { \"target\": \"nsis\" },\n  \"linux\": { \"target\": \"AppImage\" }\n}\n```\n### Scripts\n```json\n\"scripts\": {\n  \"build\": \"electron-builder\",\n  \"dist\": \"npm run build\"\n}\n```\nRun `npm run build` – you’ll get platform‑specific installers in the `dist/` folder.\n\n### Code signing (macOS)\n1. Create an **Apple Developer ID** certificate.\n2. Add to `build` config:\n```json\n\"mac\": {\n  \"identity\": \"Developer ID Application: Your Name (TEAMID)\"\n}\n```\n### Code signing (Windows)\n* Obtain a **code‑signing certificate** (pfx file)\n* Add to config:\n```json\n\"win\": {\n  \"certificateFile\": \"cert.pfx\",\n  \"certificatePassword\": \"your‑password\"\n}\n```\n",
+      "keyPoints": [
+        "`electron-builder` can output **installers** for all major OSes from a single command.",
+        "Specify which files to include with the `files` array – include the compiled renderer bundle.",
+        "Code‑signing is required for macOS Gatekeeper and Windows SmartScreen.",
+        "After the build you can upload the installer to GitHub releases for auto‑update discovery."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-22",
+      "title": "Code Signing – macOS & Windows",
+      "duration": "9 mins",
+      "content": "# Code Signing – macOS & Windows\n\n### macOS notarization (Gatekeeper)\n1. Enroll in the Apple Developer Program.\n2. Export a **Developer ID Application** certificate.\n3. Sign the app bundle:\n```bash\ncodesign --deep --force --options runtime --entitlements entitlements.plist \\\n  --sign \"Developer ID Application: Your Name (TEAMID)\" MyApp.app\n```\n4. Notarize with `xcrun altool` (or `notarytool` in newer Xcode):\n```bash\nxcrun notarytool submit MyApp.app --apple-id YOUR_ID --password APP_SPECIFIC_PASSWORD --team-id TEAMID\n```\n5. Once notarized, staple the ticket:\n```bash\nxcrun stapler staple MyApp.app\n```\n\n### Windows code signing\n1. Purchase a **code‑signing certificate** (or use a free OpenSSL self‑signed cert for testing).\n2. Sign the executable with `signtool`:\n```bash\nsigntool sign /f cert.pfx /p YOUR_PASSWORD /tr http://timestamp.digicert.com /td sha256 /fd sha256 dist/MyApp Setup.exe\n```\n3. Verify:\n```bash\nsigntool verify /pa /v dist/MyApp Setup.exe\n```\n\nBoth platforms require the signature to be **embedded** before creating the installer; `electron-builder` can run the signing step automatically if you provide the appropriate config.\n",
+      "keyPoints": [
+        "macOS: sign with **Developer ID**, then notarize via Apple’s notary service.",
+        "Windows: use `signtool` (or `osslsigncode` for open‑source certs).",
+        "The signature must be applied **before** the installer is built, or the installer must sign the contained binaries.",
+        "A missing or invalid signature will cause the app to be blocked or shown as untrusted."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-23",
+      "title": "Creating Installers – NSIS (Windows), DMG (macOS), AppImage (Linux)",
+      "duration": "10 mins",
+      "content": "# Creating Installers – NSIS (Windows), DMG (macOS), AppImage (Linux)\n\n### NSIS (Windows)\n`electron-builder` uses **NSIS** under the hood. You can customise the installer via the `nsis` object in `package.json`:\n```json\n\"nsis\": {\n  \"oneClick\": false,\n  \"perMachine\": true,\n  \"allowToChangeInstallationDirectory\": true,\n  \"include\": \"build/installer.nsh\"\n}\n```\nA custom NSIS script (`installer.nsh`) can add extra steps (e.g., install a service).\n\n### DMG (macOS)\n`electron-builder` creates a **DMG** that displays a drag‑to‑Applications window.\nYou can tweak the appearance:\n```json\n\"dmg\": {\n  \"icon\": \"build/icon.icns\",\n  \"background\": \"build/dmg-bg.png\",\n  \"contents\": [\n    { \"x\": 130, \"y\": 220 },\n    { \"x\": 410, \"y\": 220, \"type\": \"link\", \"path\": \"/Applications\" }\n  ]\n}\n```\n\n### AppImage (Linux)\n`electron-builder` bundles everything into a **self‑extracting AppImage**.\nAdd Linux specific config if you need desktop icons:\n```json\n\"linux\": {\n  \"target\": \"AppImage\",\n  \"category\": \"Utility\",\n  \"icon\": \"build/icon.png\"\n}\n```\n\nRun `npm run build` and you’ll find `MyApp-Setup.exe`, `MyApp.dmg`, and `MyApp.AppImage` in the `dist/` folder.\n",
+      "keyPoints": [
+        "NSIS creates a Windows installer (EXE) – you can customise UI and actions via an NSIS script.",
+        "DMG gives macOS users a drag‑to‑Applications installer; you can set background images and icons.",
+        "AppImage packages a portable Linux binary that runs on most distributions without root.",
+        "All three installers are generated automatically by **electron‑builder** when the appropriate targets are declared."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-24",
+      "title": "Debugging – DevTools, Remote Debugging & Logging",
+      "duration": "9 mins",
+      "content": "# Debugging – DevTools, Remote Debugging & Logging\n\n### Open DevTools in a renderer window\n```js\nwin.webContents.openDevTools({ mode: 'detach' });\n```\nYou can also enable it only in development:\n```js\nif (!app.isPackaged) win.webContents.openDevTools();\n```\n### Remote debugging (headless CI)\nLaunch Electron with the `--remote-debugging-port` flag:\n```bash\nelectron . --remote-debugging-port=9222\n```\nThen connect from Chrome at `http://localhost:9222`.\n### Logging from the main process\n```js\nconst log = require('electron-log');\nlog.info('App started');\nlog.error('Oops');\n```\nThe log file is saved to `app.getPath('logs')/main.log`.\n### Capture crashes\n```js\napp.on('render-process-gone', (event, webContents, details) => {\n  log.error(`Renderer crashed: ${details.reason}`);\n});\n```\nUse the **`electron-debug`** module for hot‑reloading shortcuts during development.\n",
+      "keyPoints": [
+        "`win.webContents.openDevTools()` opens Chromium DevTools for a renderer window.",
+        "Use `--remote-debugging-port` to attach a debugger from another machine or CI.",
+        "`electron-log` gives you file‑based logging for the main process.",
+        "Listen to `render-process-gone` to detect and log renderer crashes."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-25",
+      "title": "Testing Electron Apps – Spectron & Playwright",
+      "duration": "11 mins",
+      "content": "# Testing Electron Apps – Spectron & Playwright\n\n### Spectron (official but now deprecated)\n```bash\nnpm install --save-dev spectron mocha\n```\n```js\nconst { Application } = require('spectron');\nconst assert = require('assert');\n\ndescribe('App launch', function(){\n  this.timeout(10000);\n  let app;\n  beforeEach(()=>{ app = new Application({ path: require('electron'), args: ['.'] }); return app.start(); });\n  afterEach(()=> app && app.stop());\n\n  it('shows a window', async()=>{ const count = await app.client.getWindowCount(); assert.equal(count, 1); });\n});\n```\n### Playwright (modern, cross‑platform)\n```bash\nnpm install --save-dev @playwright/test electron\n```\n```js\n// tests/electron.test.js\nconst { test, expect } = require('@playwright/test');\nconst { _electron: electron } = require('playwright');\n\ntest('app has title', async () => {\n  const app = await electron.launch({ args: ['.'] });\n  const window = await app.firstWindow();\n  await expect(window).toHaveTitle(/MyApp/);\n});\n```\nPlaywright can also record videos and run headless CI.\n\n### Unit testing the main process\nUse any Node test runner (Jest, Mocha) because the main process is just a Node script.\n```js\n// main.test.js\nconst { app } = require('electron');\ntest('app is not null', () => { expect(app).toBeDefined(); });\n```\n",
+      "keyPoints": [
+        "Spectron is the original Electron test framework; Playwright is the recommended modern alternative.",
+        "Use **E2E tests** to verify window creation, menus, and IPC interactions.",
+        "Unit‑test the main process like any Node module (Jest/Mocha).",
+        "Run tests in CI by launching Electron with `--headless` or using Playwright’s headless mode."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-26",
+      "title": "Performance Profiling – Chrome DevTools & Electron‑Performance",
+      "duration": "9 mins",
+      "content": "# Performance Profiling – Chrome DevTools & Electron‑Performance\n\n### Chrome DevTools (renderer)\n* Open DevTools → **Performance** panel.\n* Record a session, look for **long tasks**, **layout thrashing**, **paint** time.\n* Use **`performance.now()`** in your code to measure custom sections.\n\n### Main‑process profiling\n```js\nconst { performance } = require('perf_hooks');\nconst start = performance.now();\n// … heavy work …\nconst duration = performance.now() - start;\nconsole.log(`Main work took ${duration.toFixed(2)} ms`);\n```\n### Memory profiling\n* DevTools → **Memory** → take a heap snapshot.\n* Look for detached DOM trees or large JS objects.\n### Use `electron‑performance` (third‑party)\n```bash\nnpm install electron-performance\n```\n```js\nconst { monitor } = require('electron-performance');\nmonitor(app);\n```\nIt logs CPU, memory and event‑loop lag.\n",
+      "keyPoints": [
+        "DevTools’ **Performance** panel works for renderer processes out of the box.",
+        "Measure main‑process work with Node’s `perf_hooks` API.",
+        "Take heap snapshots to find memory leaks (e.g., forgotten listeners).",
+        "`electron-performance` gives you periodic CPU & memory stats in the console."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-27",
+      "title": "Accessibility – Keyboard, ARIA & High‑Contrast",
+      "duration": "8 mins",
+      "content": "# Accessibility – Keyboard, ARIA & High‑Contrast\n\n* **Keyboard navigation** – ensure every interactive element is focusable (`tabindex`, proper `<button>` tags).\n* Use **ARIA landmarks** (`role=\"dialog\"`, `aria‑label`) to describe custom components.\n* Test with **NVDA** (Windows) or **VoiceOver** (macOS) to hear how the app is read.\n* Electron respects the OS’s **high‑contrast** mode; style your UI with relative colors (`currentColor`, `systemColor`).\n* Example of an accessible custom button in a renderer:\n```html\n<button id=\"saveBtn\" aria-label=\"Save document\">💾 Save</button>\n```\n* In the main process you can query the OS’s accessibility settings:\n```js\nconst { systemPreferences } = require('electron');\nconst highContrast = systemPreferences.isHighContrastColorScheme();\n```\n",
+      "keyPoints": [
+        "All UI elements must be reachable via keyboard (`Tab`, `Enter`, `Space`).",
+        "Use proper semantic HTML and ARIA attributes for custom widgets.",
+        "Electron automatically follows the OS’s **high‑contrast** setting if you use system colors.",
+        "Test with screen‑readers on each platform to ensure a usable experience."
+      ],
+      "xpReward": 10
+    },
+    {
+      "id": "lesson-28",
+      "title": "Capstone Project – Cross‑Platform Note‑Taking App",
+      "duration": "30 mins",
+      "content": "# Capstone Project – Cross‑Platform Note‑Taking App\n\nIn this project you will combine everything you’ve learned.\n\n## Requirements\n1. **Create**, **edit**, and **delete** plain‑text notes.\n2. Store notes in **electron‑store** (JSON file in the user data folder).\n3. Use **IPC** to fetch and persist notes – UI never touches the file system directly.\n4. Add a **system tray** icon with a menu: *Show*, *New Note*, *Quit*.\n5. Implement **auto‑update** using `electron-updater` (you can point to a GitHub repository you create for the demo).\n6. Package the app for **Windows (NSIS)**, **macOS (DMG)** and **Linux (AppImage)** with `electron-builder`.\n7. Sign the macOS build (you can skip actual notarization for the demo, but include the steps).\n8. Write **unit tests** for the main‑process store logic using **Jest** and **E2E tests** for the UI with **Playwright**.\n\n## Suggested Folder Layout\n```\nmy‑notes/\n├─ main/          # main‑process code\n│   └─ main.js\n├─ preload/       # bridge script\n│   └─ bridge.js\n├─ renderer/       # UI (plain HTML/JS or any framework)\n│   ├─ index.html\n│   └─ renderer.js\n├─ package.json\n└─ electron-builder.yml (optional custom config)\n```\n\nWhen you finish, run `npm run build` and you should see three installers in `dist/`. Submit the entire project folder (source + build config + test files) as a zip.\n",
+      "keyPoints": [
+        "All file I/O lives in the **main** process (via electron‑store).",
+        "Use a **preload bridge** to expose CRUD functions (`getNotes`, `addNote`, `deleteNote`).",
+        "Add a **system tray** for quick actions and a native **menu** for macOS.",
+        "Configure `electron‑builder` to output installers for all three major platforms."
+      ],
+      "xpReward": 10
+    }
+  ],
+  "lessonAutoAward": true,
+  "quiz": {
+    "passingScore": 70,
+    "questions": [
+      {
+        "question": "Which combination of settings is considered the most secure for a BrowserWindow?",
+        "options": [
+          "`nodeIntegration: true, contextIsolation: false`",
+          "`nodeIntegration: false, contextIsolation: true`",
+          "`nodeIntegration: true, enableRemoteModule: true`",
+          "`nodeIntegration: false, contextIsolation: false`"
+        ],
+        "answer": 1
+      },
+      {
+        "question": "What does `autoUpdater.checkForUpdatesAndNotify()` do?",
+        "options": [
+          "Immediately downloads and installs the update without user consent.",
+          "Checks a remote server for a new version and shows a system notification if one is available.",
+          "Opens a dialog asking the user to download the update from a website.",
+          "Only works on Linux platforms."
+        ],
+        "answer": 1
+      },
+      {
+        "question": "In a preload script, how should you expose a function that returns a promise from the main process?",
+        "options": [
+          "`window.myAPI = ipcRenderer.invoke('my-call')`",
+          "`contextBridge.exposeInMainWorld('myAPI', { getData: () => ipcRenderer.invoke('my-call') })`",
+          "`global.myAPI = { getData: () => ipcRenderer.sendSync('my-call') }`",
+          "`process.myAPI = () => ipcRenderer.send('my-call')`"
+        ],
+        "answer": 1
+      }
+    ]
+  },
+  "practicalTests": [
+    {
+      "id": "practical-1",
+      "title": "Hello World Electron App",
+      "description": "Create a minimal Electron application that opens a window displaying \"Hello, Electron!\". Use a separate `main.js` and `index.html` and add a start script in `package.json`.",
+      "timeLimit": 20,
+      "difficulty": "Beginner",
+      "instructions": "1. `npm init -y`\n2. `npm install --save-dev electron`\n3. Create `main.js` (create BrowserWindow and load `index.html`).\n4. Create `index.html` with a heading.\n5. Add \"start\": \"electron .\" to `package.json`.\n6. Run `npm start` and verify the window appears.\nSubmit the three files (`package.json`, `main.js`, `index.html`).",
+      "courseId": "electron-course",
+      "order": 0
+    },
+    {
+      "id": "practical-2",
+      "title": "IPC – Renderer asks Main for App Version",
+      "description": "Implement a preload bridge that lets the renderer call an async function to get the app version from the main process.",
+      "timeLimit": 30,
+      "difficulty": "Intermediate",
+      "instructions": "1. In `main.js` add `ipcMain.handle('app:getVersion', () => app.getVersion())`.\n2. Create `preload/bridge.js` that exposes `window.electronAPI.getVersion` using `contextBridge` and `ipcRenderer.invoke`.\n3. In `index.html` add a `<span id=\"ver\"></span>` and a script that sets its text to `await window.electronAPI.getVersion()`.\n4. Ensure `nodeIntegration` is **false** and `contextIsolation` is **true**.\nSubmit `main.js`, `preload/bridge.js`, `index.html`, and `package.json`.",
+      "courseId": "electron-course",
+      "order": 1
+    },
+    {
+      "id": "practical-3",
+      "title": "File Open Dialog via IPC",
+      "description": "Create a menu item that opens a native file‑open dialog and displays the selected file path in the renderer.",
+      "timeLimit": 35,
+      "difficulty": "Intermediate",
+      "instructions": "1. Add a menu entry (`MenuItem` → click handler) that sends `ipcMain.handle('dialog:openFile')`.\n2. In the main handler use `dialog.showOpenDialog` (allow single selection) and return the path.\n3. Expose the call in the preload bridge as `window.electronAPI.openFile()`.\n4. In the UI, add a button that calls `window.electronAPI.openFile()` and places the result into a `<div id=\"path\"></div>`.\nSubmit `main.js`, `preload/bridge.js`, `index.html`, and `package.json`.",
+      "courseId": "electron-course",
+      "order": 2
+    },
+    {
+      "id": "practical-4",
+      "title": "Persist Notes with electron‑store",
+      "description": "Implement a simple note‑taking UI that saves notes to disk using electron‑store through IPC.",
+      "timeLimit": 45,
+      "difficulty": "Advanced",
+      "instructions": "1. Install `electron-store`.\n2. In the main process create a Store instance and expose `getNotes`, `addNote`, `deleteNote` via IPC (handle calls).\n3. In the preload bridge expose async wrappers for those three actions.\n4. Build a renderer UI:\n   * Textarea for note content.\n   * \"Add\" button → calls `addNote`.\n   * List of saved notes each with a \"Delete\" button.\n   * On load, fetch notes via `getNotes` and render.\n5. Ensure the store file lives in the user data folder (default behavior).\nSubmit the complete source folder (`main.js`, `preload/bridge.js`, `renderer/*`, `package.json`).",
+      "courseId": "electron-course",
+      "order": 3
+    },
+    {
+      "id": "practical-5",
+      "title": "Package the App for All Platforms",
+      "description": "Configure electron‑builder to produce Windows (NSIS), macOS (DMG) and Linux (AppImage) installers.",
+      "timeLimit": 60,
+      "difficulty": "Advanced",
+      "instructions": "1. Install `electron-builder` as a dev dependency.\n2. Add a `build` section to `package.json` (appId, productName, files, win, mac, linux targets).\n3. Add a `sign` configuration for macOS (identity placeholder) and Windows (certificate placeholder).\n4. Run `npm run build`.\n5. Verify that `dist/` contains `MyApp Setup.exe`, `MyApp.dmg`, and `MyApp.AppImage`.\n6. Provide a short `README.md` explaining how to run each installer.\nSubmit the complete project (including `package.json`, `electron-builder` config and a screenshot of the `dist` folder).",
+      "courseId": "electron-course",
+      "order": 4
+    }
+  ]
+}

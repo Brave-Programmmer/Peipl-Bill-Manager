@@ -1,12 +1,13 @@
 {
   "name": "peipl-bill-maker",
-  "version": "2.5.0",
+  "version": "2.7.0",
   "private": true,
+  "type": "module",
   "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "dev:turbo": "next dev",
-    "build": "npx next build && npx next export",
+    "build": "npx next build",
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
@@ -36,9 +37,12 @@
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
     "@tailwindcss/postcss": "^4",
+    "@types/react": "19.2.14",
     "concurrently": "^8.2.2",
     "electron": "^38.1.2",
     "electron-builder": "^26.4.0",
+    "eslint": "^8",
+    "eslint-config-next": "15.1.0",
     "playwright": "^1.57.0",
     "tailwindcss": "^4.1.12",
     "wait-on": "^7.2.0"
@@ -52,6 +56,7 @@
     "files": [
       "electron/**/*",
       "out/**/*",
+      "public/**/*",
       "package.json"
     ],
     "win": {
@@ -60,9 +65,9 @@
       "requestedExecutionLevel": "asInvoker",
       "fileAssociations": [
         {
-          "ext": "json",
+          "ext": "peiplbill",
           "name": "PEIPL Bill File",
-          "description": "PEIPL Bill Assistant JSON File",
+          "description": "PEIPL Bill File",
           "icon": "public/logo.png",
           "role": "Editor"
         }
@@ -73,9 +78,9 @@
       "icon": "public/logo.png",
       "fileAssociations": [
         {
-          "ext": "json",
+          "ext": "peiplbill",
           "name": "PEIPL Bill File",
-          "description": "PEIPL Bill Assistant JSON File",
+          "description": "PEIPL Bill File",
           "icon": "public/logo.png",
           "role": "Editor"
         }
@@ -86,9 +91,9 @@
       "icon": "public/logo.png",
       "fileAssociations": [
         {
-          "ext": "json",
+          "ext": "peiplbill",
           "name": "PEIPL Bill File",
-          "description": "PEIPL Bill Assistant JSON File",
+          "description": "PEIPL Bill File",
           "icon": "public/logo.png",
           "role": "Editor"
         }

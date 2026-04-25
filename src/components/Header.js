@@ -7,6 +7,7 @@ export default function Header({
   sidebarOpen,
   onQuickSave,
   onQuickGenerate,
+  hasUnsavedChanges,
 }) {
   const [isElectron, setIsElectron] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -31,133 +32,99 @@ export default function Header({
   };
 
   return (
-    <header
-      className={`bg-gradient-to-r from-[#0d9488] via-[#0a7a78] to-[#056064] shadow-xl no-print relative overflow-hidden animate-slide-in-up transition-all duration-300 ${isElectron ? "mt-10" : ""}`}
-    >
-      {/* Decorative background pattern */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#14b8a6]/10 to-[#2d3436]/5 pointer-events-none"></div>
-      <div
-        className="absolute inset-0 opacity-10 pointer-events-none"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-        }}
-      ></div>
+    <header className="sticky top-0 z-[60] w-full bg-surface/80 backdrop-blur-md border-b border-border-light shadow-sm electron-header">
+      <div className="section-container !py-3 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={onToggleSidebar}
+            className="btn-icon"
+            aria-label={sidebarOpen ? "Close Sidebar" : "Open Sidebar"}
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              {sidebarOpen
+                ? <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                : <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 6h16M4 12h16M4 18h16"
+                  />}
+            </svg>
+          </button>
 
-      <div className="max-w-full px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="flex justify-between items-center py-4 sm:py-5">
-          {/* Left Section */}
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            {/* Hamburger Menu Button */}
-            {!isElectron && onToggleSidebar && (
-              <button
-                onClick={onToggleSidebar}
-                className="w-10 h-10 flex items-center justify-center text-white hover:bg-white/20 active:bg-white/30 transition-all duration-200 rounded-lg group cursor-pointer flex-shrink-0 btn-icon"
-                title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
-                aria-label="Toggle sidebar"
-              >
-                <svg
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  className="group-hover:scale-110 transition-transform"
-                >
-                  {sidebarOpen ? (
-                    <>
-                      <path
-                        d="M6 6L18 18M18 6L6 18"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <path
-                        d="M3 6h18M3 12h18M3 18h18"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-                    </>
-                  )}
-                </svg>
-              </button>
-            )}
-
-            {/* Logo */}
-            <div className="flex-shrink-0">
-              <div className="w-12 h-12 sm:w-14 sm:h-14 backdrop-blur-md flex items-center justify-center overflow-hidden group bg-white/15 rounded-xl shadow-lg border border-white/20 hover:bg-white/20 transition-all duration-300">
-                <img
-                  src="./logo.png"
-                  alt="Pujari Engineers Logo"
-                  width={56}
-                  height={56}
-                  className="object-contain w-10 h-10 sm:w-12 sm:h-12 group-hover:scale-110 group-hover:rotate-3 transition-all duration-300"
-                />
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-inverse font-bold">
+              P
             </div>
+            <h1 className="text-lg font-bold tracking-tight hidden sm:block">
+              Peipl <span className="text-primary">BillManager</span>
+            </h1>
+          </div>
+        </div>
 
-            {/* Title & Description */}
-            <div className="space-y-0 sm:space-y-0.5 hidden sm:block">
-              <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight drop-shadow-md">
-                Pujari Engineers
-              </h1>
-              <p className="text-white/85 text-xs sm:text-sm font-medium tracking-wide">
-                 Bill Management
-              </p>
-            </div>
-
-            {/* Mobile title only */}
-            <div className="sm:hidden space-y-0">
-              <h1 className="text-lg font-bold text-white tracking-tight drop-shadow-md">
-                PEIPL
-              </h1>
-              <p className="text-white/85 text-xs font-medium">Bill Manager</p>
-            </div>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <div className="hidden md:flex items-center px-3 py-1 bg-bg-alt rounded-full text-xs font-medium text-text-muted">
+            <span
+              className={hasUnsavedChanges ? "text-accent" : "text-success"}
+            >
+              ●
+            </span>
+            <span className="ml-2">
+              {hasUnsavedChanges ? "Unsaved Changes" : "All Saved"}
+            </span>
           </div>
 
-          {/* Right Section */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Quick Action Buttons (hidden on small screens) */}
-            <div className="hidden md:flex items-center space-x-2">
-              {onQuickSave && (
-                <button
-                  onClick={onQuickSave}
-                  className="flex items-center space-x-1.5 px-3 py-2 bg-emerald-500/90 hover:bg-emerald-600 text-white rounded-lg transition-all duration-200 font-medium text-sm hover:shadow-lg active:scale-95"
-                  title="Quick save bill (Ctrl+S)"
-                  aria-label="Quick save"
-                >
-                  <span>💾</span>
-                  <span className="hidden lg:inline">Save</span>
-                </button>
-              )}
-              {onQuickGenerate && (
-                <button
-                  onClick={onQuickGenerate}
-                  className="flex items-center space-x-1.5 px-3 py-2 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg transition-all duration-200 font-medium text-sm hover:shadow-lg active:scale-95"
-                  title="Quick generate bill"
-                  aria-label="Quick generate"
-                >
-                  <span>📄</span>
-                  <span className="hidden lg:inline">Generate</span>
-                </button>
-              )}
-            </div>
-
-            {/* Current Time */}
-            <div className="hidden md:flex flex-col items-end text-white bg-white/10 px-3 py-2 rounded-lg border border-white/20">
-              <div className="text-xs font-semibold text-white/90">
-                {formatTime(currentTime)}
-              </div>
-              <div className="text-xs text-white/70">
-                {currentTime.toLocaleDateString("en-IN", {
-                  weekday: "short",
-                  day: "2-digit",
-                  month: "short",
-                })}
-              </div>
-            </div>
+          <div className="flex items-center gap-1 sm:gap-2">
+            <button
+              onClick={onQuickSave}
+              className="btn btn-outline btn-sm"
+              title="Save Bill (Ctrl+S)"
+            >
+              <span className="hidden sm:inline">Save</span>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V2"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={onQuickGenerate}
+              className="btn btn-primary btn-sm"
+              title="Generate PDF (Ctrl+G)"
+            >
+              <span className="hidden sm:inline">Generate</span>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </button>
           </div>
         </div>
       </div>

@@ -28,7 +28,7 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
         setSetupStatus("error");
         toast.error(
           "File association feature is not available. Please update the app.",
-          { duration: 5000 }
+          { duration: 5000 },
         );
         setIsSettingUp(false);
         return;
@@ -46,24 +46,32 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
         // Check if it was fully successful or partial
         const isPartial = result?.message?.includes("partially");
         const toastFn = isPartial ? toast : toast.success;
-        
+
         toastFn(
           isPartial
-            ? `⚠️ Partial success: ${result.message}\n\nSome features may require Administrator privileges.`
-            : "✅ File associations configured! You can now open .json and .peiplbill files directly with this app.",
+            ? `⚠️ Partial success: ${result.message}\n\nSome features may require Administrator privileges.\n\nSupported formats: .json, .peiplbill`
+            : "✅ File associations configured!\n\nYou can now open .json and .peiplbill files directly with this app.",
           {
-            duration: isPartial ? 6000 : 5000,
+            duration: isPartial ? 7000 : 5000,
             icon: isPartial ? "⚠️" : "📄",
-            style: isPartial ? {
-              maxWidth: "500px",
-              whiteSpace: "pre-wrap",
-            } : {},
-          }
+            style: isPartial
+              ? {
+                  maxWidth: "500px",
+                  whiteSpace: "pre-wrap",
+                }
+              : {
+                  maxWidth: "400px",
+                  whiteSpace: "pre-wrap",
+                },
+          },
         );
         // Auto-close after success
-        setTimeout(() => {
-          onClose();
-        }, isPartial ? 3500 : 2500);
+        setTimeout(
+          () => {
+            onClose();
+          },
+          isPartial ? 3500 : 2500,
+        );
       } else {
         setSetupStatus("error");
         const errorMsg = result?.error || "Unknown error occurred";
@@ -75,7 +83,7 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
               maxWidth: "500px",
               whiteSpace: "pre-wrap",
             },
-          }
+          },
         );
       }
     } catch (error) {
@@ -85,7 +93,7 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
         `Unexpected error: ${error.message || "Please try again later"}`,
         {
           duration: 5000,
-        }
+        },
       );
     } finally {
       setIsSettingUp(false);
@@ -94,18 +102,16 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
 
   const openFileAssociationSettings = async () => {
     if (!isElectron) {
-      toast(
-        "This feature is only available in the desktop app.",
-        { icon: "ℹ️" }
-      );
+      toast("This feature is only available in the desktop app.", {
+        icon: "ℹ️",
+      });
       return;
     }
 
     if (typeof window.electronAPI?.openFileAssociationSettings !== "function") {
-      toast.error(
-        "File association settings feature is not available.",
-        { duration: 5000 }
-      );
+      toast.error("File association settings feature is not available.", {
+        duration: 5000,
+      });
       return;
     }
 
@@ -118,15 +124,15 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
         });
       } else {
         toast(
-          "Right-click a .json file and select 'Open with' to manually set this app as the default.",
-          { icon: "📝", duration: 5000 }
+          'Right-click a .json file and select "Open with" to manually set this app as the default.',
+          { icon: "📝", duration: 5000 },
         );
       }
     } catch (error) {
       console.error("Error opening file association settings:", error);
       toast(
-        "Please manually right-click a JSON file and select 'Open with' to set this app as default.",
-        { icon: "📝", duration: 5000 }
+        'Please manually right-click a JSON file and select "Open with" to set this app as default.',
+        { icon: "📝", duration: 5000 },
       );
     }
   };
@@ -161,8 +167,9 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                     💡 Quick Start
                   </h3>
                   <p className="text-blue-800 text-sm">
-                    Double-click JSON bill files to open them directly in PEIPL
-                    Bill Maker. Set this up once and you're all set!
+                    Double-click JSON or .peiplbill bill files to open them
+                    directly in PEIPL Bill Assistant. Set this up once and
+                    you&apos;re all set!
                   </p>
                 </div>
 
@@ -173,7 +180,8 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                     Automatic Setup (Recommended)
                   </h3>
                   <p className="text-gray-600 text-sm mb-4">
-                    One-click setup to configure your system for JSON files.
+                    One-click setup to configure your system for JSON and
+                    .peiplbill files.
                   </p>
                   <button
                     onClick={setupFileAssociations}
@@ -228,7 +236,8 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                     Manual Setup
                   </h3>
                   <p className="text-gray-600 text-sm mb-4">
-                    Follow these simple steps if automatic setup doesn't work.
+                    Follow these simple steps if automatic setup doesn&apos;t
+                    work.
                   </p>
                   <ol className="space-y-2 text-sm text-gray-700">
                     <li className="flex gap-3 items-start">
@@ -236,7 +245,8 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                         1
                       </span>
                       <span>
-                        Right-click any .json file in Windows File Explorer
+                        Right-click any .json or .peiplbill file in Windows File
+                        Explorer
                       </span>
                     </li>
                     <li className="flex gap-3 items-start">
@@ -262,7 +272,8 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                       </span>
                       <span>
                         Check{" "}
-                        <strong>Always use this app to open .json files</strong>
+                        <strong>Always use this app to open .json files</strong>{" "}
+                        (repeat for .peiplbill files if needed)
                       </span>
                     </li>
                     <li className="flex gap-3 items-start">
@@ -284,12 +295,13 @@ export default function FileAssociationSetup({ isVisible, onClose }) {
                   </h3>
                   <p className="text-green-700 text-sm mb-3">
                     After setting up file associations, test them by
-                    double-clicking a JSON file.
+                    double-clicking a JSON or .peiplbill file.
                   </p>
                   <div className="flex items-center space-x-2 text-sm text-green-600">
                     <span>✓</span>
                     <span>
-                      Create a sample JSON file and double-click it to test!
+                      Create a sample JSON or .peiplbill file and double-click
+                      it to test!
                     </span>
                   </div>
                 </div>

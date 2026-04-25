@@ -33,30 +33,70 @@
   background: #fff;
   border-radius: var(--border-radius-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid rgba(1, 155, 152, 0.15);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--gray-200);
+  position: relative;
+}
+
+.tableContainer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--primary-color) 0%,
+    var(--primary-dark) 100%
+  );
+  z-index: 1;
 }
 
 .tableHeader {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--primary-dark) 100%
+  );
   color: white;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 12px;
-  letter-spacing: 0.5px;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  position: relative;
+  z-index: 2;
 }
 
 .tableHeaderCell {
-  padding: var(--spacing-lg) var(--spacing-md);
+  padding: 16px var(--spacing-md);
   border-right: 1px solid rgba(255, 255, 255, 0.15);
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--primary-dark) 100%
+  );
+  position: relative;
+  font-size: 11px;
+  letter-spacing: 0.8px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .tableHeaderCell:last-child {
   border-right: none;
+}
+
+.tableHeaderCell::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .tableBody {
@@ -94,30 +134,60 @@
 }
 
 .tableCell {
-  padding: 14px var(--spacing-md);
+  padding: 12px var(--spacing-md);
   border-right: 1px solid var(--gray-200);
   color: var(--text-main);
   font-size: 13px;
   vertical-align: middle;
   white-space: pre-wrap;
   word-break: break-word;
+  position: relative;
+  transition: var(--transition-fast);
 }
 
 .tableCell:last-child {
   border-right: none;
 }
 
+.tableCell:hover {
+  background: rgba(1, 155, 152, 0.02);
+}
+
 .tableCellNumeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
+  font-weight: 600;
   color: #047857;
+  font-family: "SF Mono", "Monaco", "Inconsolata", "Roboto Mono", monospace;
 }
 
 .tableCellReadOnly {
-  background: var(--gray-100);
+  background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
   color: var(--gray-600);
   font-weight: 500;
+  cursor: default;
+}
+
+.tableCellEditable {
+  position: relative;
+}
+
+.tableCellEditable::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 1px solid transparent;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
+  pointer-events: none;
+}
+
+.tableCellEditable:hover::before {
+  border-color: rgba(1, 155, 152, 0.3);
+  background: rgba(1, 155, 152, 0.02);
 }
 
 .totalsRow {
@@ -146,20 +216,26 @@
 .cellInput {
   width: 100%;
   padding: 8px var(--spacing-sm);
-  border: 1px solid transparent;
+  border: 1px solid #e5e7eb;
   border-radius: var(--border-radius-sm);
-  background: transparent;
-  color: inherit;
+  background: #ffffff;
+  color: #1f2937;
   font-size: 13px;
   font-family: inherit;
   transition: var(--transition);
+  min-height: 32px;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cellInput:focus {
   outline: none;
   border-color: var(--primary-color);
-  background: rgba(1, 155, 152, 0.05);
-  box-shadow: 0 0 0 3px rgba(1, 155, 152, 0.1);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(1, 155, 152, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
 .cellInput:focus-visible {
@@ -167,47 +243,181 @@
   outline-offset: -1px;
 }
 
-.cellInput:hover:not(:focus) {
-  background: rgba(1, 155, 152, 0.02);
-  border-color: rgba(1, 155, 152, 0.2);
+.cellInput:hover:not(:focus):not(:disabled) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .cellInput:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+  background: #f3f4f6;
 }
 
 .cellInputReadOnly {
-  color: var(--gray-600);
+  color: #6b7280;
   cursor: default;
-  background: var(--gray-100);
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  box-shadow: none;
+}
+
+.cellInputError {
+  border-color: #dc2626;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.cellInputFocused {
+  border-color: var(--primary-color);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(1, 155, 152, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.cellInputFocusedError {
+  border-color: #dc2626;
+  background: #fef2f2;
+  box-shadow:
+    0 0 0 3px rgba(239, 68, 68, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  animation: shake 0.3s ease-in-out;
+  color: #991b1b;
+}
+
+/* ============ VALIDATION ERROR MESSAGES ============ */
+.validationError {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--border-radius-sm);
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 500;
+  animation: slideDown 0.2s ease-out;
+}
+
+.validationError::before {
+  content: "!";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: #dc2626;
+  color: white;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.validationWarning {
+  background: rgba(217, 119, 6, 0.1);
+  border-color: rgba(217, 119, 6, 0.2);
+  color: #d97706;
+}
+
+.validationWarning::before {
+  background: #d97706;
+}
+
+.validationSuccess {
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.2);
+  color: #059669;
+}
+
+.validationSuccess::before {
+  content: "!";
+  background: #059669;
+}
+
+/* ============ ANIMATIONS ============ */
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .cellTextarea {
   width: 100%;
   padding: 8px var(--spacing-sm);
-  border: 1px solid var(--gray-200);
+  border: 1px solid #e5e7eb;
   border-radius: var(--border-radius-sm);
-  background: #fafbfc;
-  color: var(--text-main);
+  background: #ffffff;
+  color: #1f2937;
   font-size: 13px;
   font-family: inherit;
   resize: vertical;
   transition: var(--transition);
-  min-height: 24px;
+  min-height: 48px;
   max-height: 200px;
+  box-sizing: border-box;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .cellTextarea:focus {
   outline: none;
   border-color: var(--primary-color);
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(1, 155, 152, 0.1);
+  background: #ffffff;
+  box-shadow:
+    0 0 0 3px rgba(1, 155, 152, 0.1),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
 }
 
 .cellTextarea:focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: -1px;
+}
+
+.cellTextarea:hover:not(:focus):not(:disabled) {
+  background: #f9fafb;
+  border-color: #d1d5db;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.cellTextarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f3f4f6;
 }
 
 /* ============ BUTTONS ============ */
@@ -250,7 +460,11 @@
 
 /* Button Variants */
 .btnAdd {
-  background: linear-gradient(135deg, var(--success-color) 0%, var(--success-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--success-color) 0%,
+    var(--success-dark) 100%
+  );
   color: white;
   border-color: var(--success-color);
 }
@@ -282,7 +496,11 @@
 }
 
 .btnDanger {
-  background: linear-gradient(135deg, var(--danger-color) 0%, var(--danger-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--danger-color) 0%,
+    var(--danger-dark) 100%
+  );
   color: white;
   border-color: var(--danger-color);
 }
@@ -331,7 +549,11 @@
 }
 
 .paginationControl:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  background: linear-gradient(
+    135deg,
+    var(--primary-color) 0%,
+    var(--primary-dark) 100%
+  );
   color: white;
   box-shadow: 0 4px 12px rgba(1, 155, 152, 0.3);
   transform: translateY(-2px);
@@ -345,4 +567,93 @@
 .paginationControl:focus-visible {
   outline: 2px solid var(--primary-color);
   outline-offset: 2px;
+}
+
+/* ============ RESPONSIVE DESIGN ============ */
+@media (max-width: 768px) {
+  .tableContainer {
+    border-radius: var(--border-radius-md);
+    margin: 0 -8px;
+    width: calc(100% + 16px);
+  }
+
+  .tableHeaderCell {
+    padding: 12px 8px;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+  }
+
+  .tableCell {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+
+  .cellInput {
+    font-size: 12px;
+    padding: 6px 4px;
+    min-height: 28px;
+  }
+
+  .cellTextarea {
+    font-size: 12px;
+    padding: 6px 4px;
+    min-height: 36px;
+  }
+
+  .tableCellNumeric {
+    font-size: 11px;
+  }
+
+  .btnModern {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .btnSmall {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tableHeaderCell {
+    padding: 8px 4px;
+    font-size: 9px;
+  }
+
+  .tableCell {
+    padding: 6px 4px;
+    font-size: 11px;
+  }
+
+  .cellInput {
+    font-size: 11px;
+    padding: 4px 2px;
+    min-height: 24px;
+  }
+
+  .cellTextarea {
+    font-size: 11px;
+    padding: 4px 2px;
+    min-height: 32px;
+  }
+
+  .tableCellNumeric {
+    font-size: 10px;
+  }
+
+  .dragHandle {
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+
+  .btnModern {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .btnSmall {
+    padding: 3px 4px;
+    font-size: 9px;
+  }
 }

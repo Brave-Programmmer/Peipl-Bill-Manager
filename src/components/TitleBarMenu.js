@@ -12,7 +12,7 @@ function TitleBarMenu({
   onShowBillFolderTracker,
   onShowFileAssociationSetup,
   isLoading,
-  showTooltips
+  showTooltips,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isElectronEnv, setIsElectronEnv] = useState(false);
@@ -24,6 +24,16 @@ function TitleBarMenu({
 
   useEffect(() => {
     const handler = (e) => {
+      // Don't trigger when typing in input fields
+      const activeElement = document.activeElement;
+      const isInputElement =
+        activeElement &&
+        (activeElement.tagName === "INPUT" ||
+          activeElement.tagName === "TEXTAREA" ||
+          activeElement.contentEditable === "true");
+
+      if (isInputElement) return; // Don't interfere with typing
+
       if (e.key === "Escape") setIsMenuOpen(false);
     };
     document.addEventListener("keydown", handler);
@@ -33,14 +43,43 @@ function TitleBarMenu({
   if (!isElectronEnv) return null;
 
   const menuItems = [
-    { id: "generate", label: "Generate Bill", icon: "📄", shortcut: "Ctrl+G", action: onGenerateBill, disabled: isLoading },
-    { id: "open", label: "Open Bill", icon: "📂", shortcut: "Ctrl+O", action: onOpenBill },
-    { id: "save", label: "Save Bill", icon: "💾", shortcut: "Ctrl+S", action: onSaveBill }
+    {
+      id: "generate",
+      label: "Generate Bill",
+      icon: "📄",
+      shortcut: "Ctrl+G",
+      action: onGenerateBill,
+      disabled: isLoading,
+    },
+    {
+      id: "open",
+      label: "Open Bill",
+      icon: "📂",
+      shortcut: "Ctrl+O",
+      action: onOpenBill,
+    },
+    {
+      id: "save",
+      label: "Save Bill",
+      icon: "💾",
+      shortcut: "Ctrl+S",
+      action: onSaveBill,
+    },
   ];
 
   const secondaryItems = [
-    { id: "tracker", label: "Bill Folder Tracker", icon: "📁", action: onShowBillFolderTracker },
-    { id: "association", label: "File Associations", icon: "🔗", action: onShowFileAssociationSetup }
+    {
+      id: "tracker",
+      label: "Bill Folder Tracker",
+      icon: "📁",
+      action: onShowBillFolderTracker,
+    },
+    {
+      id: "association",
+      label: "File Associations",
+      icon: "🔗",
+      action: onShowFileAssociationSetup,
+    },
   ];
 
   const handleClick = (item) => {
@@ -56,82 +95,94 @@ function TitleBarMenu({
       <button
         aria-label="File menu"
         onClick={() => setIsMenuOpen(!isMenuOpen)}
-        className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        className="px-2 h-7 flex items-center justify-center rounded-md hover:bg-[var(--color-bg-alt)] text-[var(--color-text-secondary)] hover:text-[var(--color-text-main)] transition-colors focus:outline-none"
       >
-        <span className="text-white text-xs font-medium">File</span>
+        <span className="text-xs font-bold tracking-tight">File</span>
       </button>
 
       {isMenuOpen && (
         <>
           {/* Backdrop */}
-          <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)} />
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setIsMenuOpen(false)}
+          />
 
           {/* Menu Panel */}
           <div
             ref={menuRef}
             role="menu"
-            className={`absolute left-0 top-full mt-1 z-50 w-64 rounded-md bg-white shadow-xl border border-gray-200 ${styles.animateFadeIn}`}
+            className={`absolute left-0 top-full mt-1.5 z-50 w-64 rounded-xl bg-[var(--color-surface)] shadow-strong border border-[var(--color-border-light)] py-2 animate-fade-in`}
           >
             {/* Header */}
-            <div className="px-4 py-2 border-b text-xs font-semibold text-gray-500 uppercase">
-              File
+            <div className="px-4 py-1.5 mb-1 text-[10px] font-bold text-[var(--color-text-muted)] uppercase tracking-widest">
+              File Actions
             </div>
 
             {/* Primary Actions */}
-            <div className="py-1">
+            <div className="space-y-0.5 px-1.5">
               {menuItems.map((item) => (
                 <button
                   key={item.id}
                   role="menuitem"
                   onClick={() => handleClick(item)}
                   disabled={item.disabled}
-                  className={`flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-gray-100 transition ${
-                    item.disabled ? "opacity-50 cursor-not-allowed" : ""
+                  className={`flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] transition-all ${
+                    item.disabled ? "opacity-40 cursor-not-allowed" : ""
                   }`}
                 >
-                  <span className="w-5 text-center">{item.icon}</span>
-                  <span className="flex-1">{item.label}</span>
-                  {item.shortcut && <span className="text-xs text-gray-400">{item.shortcut}</span>}
+                  <span className="text-lg leading-none">{item.icon}</span>
+                  <span className="flex-1 font-medium">{item.label}</span>
+                  {item.shortcut && (
+                    <span className="text-[10px] font-bold text-[var(--color-text-light)] bg-[var(--color-bg)] px-1.5 py-0.5 rounded border border-[var(--color-border-subtle)]">
+                      {item.shortcut}
+                    </span>
+                  )}
                   {item.id === "generate" && isLoading && (
-                    <span className="ml-2 w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="ml-2 w-3 h-3 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
                   )}
                 </button>
               ))}
             </div>
 
             {/* Divider */}
-            <div className="border-t my-1" />
+            <div className="border-t border-[var(--color-border-subtle)] my-2 mx-1.5" />
 
             {/* Secondary */}
-            <div className="py-1">
+            <div className="space-y-0.5 px-1.5">
               {secondaryItems.map((item) => (
                 <button
                   key={item.id}
                   role="menuitem"
                   onClick={() => handleClick(item)}
-                  className="flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-gray-100"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] transition-all"
                 >
-                  <span className="w-5 text-center">{item.icon}</span>
-                  {item.label}
+                  <span className="text-lg leading-none">{item.icon}</span>
+                  <span className="font-medium">{item.label}</span>
                 </button>
               ))}
             </div>
 
             {/* Divider */}
-            <div className="border-t my-1" />
+            <div className="border-t border-[var(--color-border-subtle)] my-2 mx-1.5" />
 
             {/* Help */}
-            <button
-              role="menuitem"
-              onClick={() => {
-                setIsMenuOpen(false);
-                onShowUserManual();
-              }}
-              className="flex w-full items-center gap-3 px-4 py-2 text-sm hover:bg-gray-100"
-            >
-              📚 User Manual
-              <span className="ml-auto text-xs text-gray-400">F1</span>
-            </button>
+            <div className="px-1.5">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  onShowUserManual();
+                }}
+                className="flex w-full items-center gap-3 px-3 py-2 text-sm rounded-lg text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] transition-all"
+              >
+                <span className="text-lg leading-none">📚</span>
+                <span className="flex-1 font-medium">User Manual</span>
+                <span className="text-[10px] font-bold text-[var(--color-text-light)] bg-[var(--color-bg)] px-1.5 py-0.5 rounded border border-[var(--color-border-subtle)]">
+                  F1
+                </span>
+              </button>
+            </div>
           </div>
         </>
       )}

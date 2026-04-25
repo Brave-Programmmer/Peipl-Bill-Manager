@@ -217,13 +217,13 @@ export const useBillTrackerState = () => {
   // Configuration state
   const [configState, dispatchConfig] = useReducer(
     configReducer,
-    INITIAL_CONFIG_STATE
+    INITIAL_CONFIG_STATE,
   );
 
   // Tracking state
   const [trackingState, dispatchTracking] = useReducer(
     trackingReducer,
-    INITIAL_TRACKING_STATE
+    INITIAL_TRACKING_STATE,
   );
 
   // UI state

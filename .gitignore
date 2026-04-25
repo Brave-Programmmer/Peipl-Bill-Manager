@@ -12,12 +12,11 @@
 /dist
 # testing
 /coverage
-
-
+/out
 # next.js
 /.next/
-/electron/out/
 
+/electron/out
 # production
 /build
 

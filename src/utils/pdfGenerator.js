@@ -41,14 +41,17 @@ export const exportToPDF = async (
       const cs = window.getComputedStyle(billElement);
       const varWidth = cs.getPropertyValue("--peipl-print-width").trim();
       if (varWidth) printWidth = varWidth;
-      else if (billElement.style && billElement.style.width) printWidth = billElement.style.width;
+      else if (billElement.style && billElement.style.width)
+        printWidth = billElement.style.width;
     } catch (e) {
       // ignore and use default
     }
 
     // Convert mm to px for windowWidth (approx: 1mm = 3.7795275591 px at 96dpi)
     const mmToPx = (mm) => Math.round(parseFloat(mm) * 3.7795275591 || 0);
-    const widthMm = /([0-9.]+)mm/.test(printWidth) ? parseFloat(printWidth) : 210;
+    const widthMm = /([0-9.]+)mm/.test(printWidth)
+      ? parseFloat(printWidth)
+      : 210;
     const windowWidthPx = mmToPx(widthMm) || 1200;
     const windowHeightPx = Math.max(1600, Math.round(windowWidthPx * 1.4));
 
@@ -231,14 +234,17 @@ export const printBill = async (billElementId, billNumber) => {
       const cs = window.getComputedStyle(printContent);
       const varWidth = cs.getPropertyValue("--peipl-print-width").trim();
       if (varWidth) printWidth = varWidth;
-      else if (printContent.style && printContent.style.width) printWidth = printContent.style.width;
+      else if (printContent.style && printContent.style.width)
+        printWidth = printContent.style.width;
     } catch (e) {
       // ignore
     }
 
     // Convert mm to px for windowWidth (approx: 1mm = 3.7795275591 px at 96dpi)
     const mmToPx = (mm) => Math.round(parseFloat(mm) * 3.7795275591 || 0);
-    const widthMm = /([0-9.]+)mm/.test(printWidth) ? parseFloat(printWidth) : 210;
+    const widthMm = /([0-9.]+)mm/.test(printWidth)
+      ? parseFloat(printWidth)
+      : 210;
     const windowWidthPx = mmToPx(widthMm) || 1200;
     const windowHeightPx = Math.max(1600, Math.round(windowWidthPx * 1.4));
 
@@ -280,7 +286,17 @@ export const printBill = async (billElementId, billNumber) => {
         sliceCanvas.width = canvas.width;
         sliceCanvas.height = sliceHeight;
         const ctx = sliceCanvas.getContext("2d");
-        ctx.drawImage(canvas, 0, yPos, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
+        ctx.drawImage(
+          canvas,
+          0,
+          yPos,
+          canvas.width,
+          sliceHeight,
+          0,
+          0,
+          canvas.width,
+          sliceHeight,
+        );
         const sliceData = sliceCanvas.toDataURL("image/png");
         const sliceHeightMM = sliceHeight / pxPerMm;
         const sliceWidth = canvas.width / pxPerMm;
@@ -344,6 +360,7 @@ export const printBill = async (billElementId, billNumber) => {
     console.error("Error preparing print PDF:", err);
     toast.error("Failed to prepare printable PDF", { id: toastId });
   } finally {
-    if (loadingDiv && loadingDiv.parentNode) loadingDiv.parentNode.removeChild(loadingDiv);
+    if (loadingDiv && loadingDiv.parentNode)
+      loadingDiv.parentNode.removeChild(loadingDiv);
   }
 };

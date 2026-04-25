@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback } from "react";
 
 /**
  * Custom hook for managing bill data state
@@ -6,7 +6,7 @@ import { useState, useCallback } from 'react';
  */
 export function useBillData(initialData) {
   const [billData, setBillData] = useState(initialData);
-  
+
   /**
    * Update a specific item at the given index
    * @param {number} rowIdx - Row index
@@ -14,19 +14,22 @@ export function useBillData(initialData) {
    * @param {*} value - New value
    * @param {function} calculateRowFormulas - Formula calculation function
    */
-  const updateItemAtIndex = useCallback((rowIdx, field, value, calculateRowFormulas) => {
-    setBillData(prev => {
-      const items = [...(prev.items || [])];
-      if (rowIdx >= items.length) return prev;
-      
-      const target = items[rowIdx]
-        ? { ...items[rowIdx], [field]: value }
-        : { [field]: value };
-      
-      items[rowIdx] = calculateRowFormulas(target);
-      return { ...prev, items };
-    });
-  }, []);
+  const updateItemAtIndex = useCallback(
+    (rowIdx, field, value, calculateRowFormulas) => {
+      setBillData((prev) => {
+        const items = [...(prev.items || [])];
+        if (rowIdx >= items.length) return prev;
+
+        const target = items[rowIdx]
+          ? { ...items[rowIdx], [field]: value }
+          : { [field]: value };
+
+        items[rowIdx] = calculateRowFormulas(target);
+        return { ...prev, items };
+      });
+    },
+    [],
+  );
 
   /**
    * Update a column definition
@@ -34,11 +37,11 @@ export function useBillData(initialData) {
    * @param {object} updates - Updates to apply
    */
   const updateColumn = useCallback((columnIndex, updates) => {
-    setBillData(prev => ({
+    setBillData((prev) => ({
       ...prev,
       columns: prev.columns.map((col, idx) =>
-        idx === columnIndex ? { ...col, ...updates } : col
-      )
+        idx === columnIndex ? { ...col, ...updates } : col,
+      ),
     }));
   }, []);
 
@@ -47,9 +50,9 @@ export function useBillData(initialData) {
    * @param {array} newItems - Array of items to add
    */
   const addItems = useCallback((newItems) => {
-    setBillData(prev => ({
+    setBillData((prev) => ({
       ...prev,
-      items: [...(prev.items || []), ...newItems]
+      items: [...(prev.items || []), ...newItems],
     }));
   }, []);
 
@@ -58,9 +61,9 @@ export function useBillData(initialData) {
    * @param {number} rowIdx - Row index to delete
    */
   const deleteItem = useCallback((rowIdx) => {
-    setBillData(prev => ({
+    setBillData((prev) => ({
       ...prev,
-      items: prev.items.filter((_, idx) => idx !== rowIdx)
+      items: prev.items.filter((_, idx) => idx !== rowIdx),
     }));
   }, []);
 
@@ -69,16 +72,16 @@ export function useBillData(initialData) {
    * @param {number} colIdx - Column index to delete
    */
   const deleteColumn = useCallback((colIdx) => {
-    setBillData(prev => {
+    setBillData((prev) => {
       const colKey = prev.columns[colIdx]?.key;
       return {
         ...prev,
         columns: prev.columns.filter((_, idx) => idx !== colIdx),
-        items: prev.items.map(item => {
+        items: prev.items.map((item) => {
           const newItem = { ...item };
           delete newItem[colKey];
           return newItem;
-        })
+        }),
       };
     });
   }, []);
@@ -89,7 +92,7 @@ export function useBillData(initialData) {
    * @param {number} toIdx - To index
    */
   const reorderItems = useCallback((fromIdx, toIdx) => {
-    setBillData(prev => {
+    setBillData((prev) => {
       const items = [...prev.items];
       const [removed] = items.splice(fromIdx, 1);
       items.splice(toIdx, 0, removed);
@@ -103,7 +106,7 @@ export function useBillData(initialData) {
    * @param {number} toIdx - To index
    */
   const reorderColumns = useCallback((fromIdx, toIdx) => {
-    setBillData(prev => {
+    setBillData((prev) => {
       const columns = [...prev.columns];
       const [removed] = columns.splice(fromIdx, 1);
       columns.splice(toIdx, 0, removed);
@@ -120,6 +123,6 @@ export function useBillData(initialData) {
     deleteItem,
     deleteColumn,
     reorderItems,
-    reorderColumns
+    reorderColumns,
   };
 }

@@ -30,9 +30,22 @@ console.log(`  Current Process Path: ${process.execPath}`);
 // Try to find the actual PEIPL Bill Assistant executable
 let appExePath = null;
 const possiblePaths = [
-  path.join(process.env.ProgramFiles || "C:\\Program Files", "PEIPL Bill Assistant", "PEIPL Bill Assistant.exe"),
-  path.join(process.env.ProgramFilesX86 || "C:\\Program Files (x86)", "PEIPL Bill Assistant", "PEIPL Bill Assistant.exe"),
-  path.join(process.env.LOCALAPPDATA || "", "Programs", "peipl-bill-maker", "PEIPL Bill Assistant.exe"),
+  path.join(
+    process.env.ProgramFiles || "C:\\Program Files",
+    "PEIPL Bill Assistant",
+    "PEIPL Bill Assistant.exe",
+  ),
+  path.join(
+    process.env.ProgramFilesX86 || "C:\\Program Files (x86)",
+    "PEIPL Bill Assistant",
+    "PEIPL Bill Assistant.exe",
+  ),
+  path.join(
+    process.env.LOCALAPPDATA || "",
+    "Programs",
+    "peipl-bill-maker",
+    "PEIPL Bill Assistant.exe",
+  ),
 ];
 
 for (const possiblePath of possiblePaths) {
@@ -44,7 +57,9 @@ for (const possiblePath of possiblePaths) {
 }
 
 if (!appExePath) {
-  console.log(`  ⚠️  Could not find app executable. Checks will use Node.exe path.\n`);
+  console.log(
+    `  ⚠️  Could not find app executable. Checks will use Node.exe path.\n`,
+  );
 }
 
 // Step 3: Test file type registration
@@ -52,15 +67,15 @@ console.log("✓ Step 3: File Type Registration");
 const commands = [
   {
     name: "Check PEIPLBillMaker registration",
-    cmd: 'ftype PEIPLBillMaker',
+    cmd: "ftype PEIPLBillMaker",
   },
   {
     name: "Check .peiplbill association",
-    cmd: 'assoc .peiplbill',
+    cmd: "assoc .peiplbill",
   },
   {
     name: "Check .json association",
-    cmd: 'assoc .json',
+    cmd: "assoc .json",
   },
 ];
 
@@ -70,7 +85,7 @@ const results = [];
 commands.forEach((test, index) => {
   exec(test.cmd, { shell: true }, (error, stdout, stderr) => {
     completed++;
-    
+
     console.log(`  ${index + 1}. ${test.name}`);
     if (error) {
       console.log(`     ❌ Error: ${error.message}`);
@@ -79,7 +94,7 @@ commands.forEach((test, index) => {
       const output = stdout.trim();
       console.log(`     ✅ ${output}`);
       results.push({ test: test.name, success: true, output });
-      
+
       // Extra validation: Check if it points to a valid executable
       if (test.name === "Check PEIPLBillMaker registration" && appExePath) {
         if (output.includes(appExePath.replace(/"/g, '\\"'))) {
@@ -103,32 +118,44 @@ commands.forEach((test, index) => {
 
 function finishDiagnostics() {
   console.log("\n✓ Step 4: Summary");
-  const successCount = results.filter(r => r.success).length;
+  const successCount = results.filter((r) => r.success).length;
   console.log(`  Checks Passed: ${successCount}/${results.length}`);
 
   if (successCount === results.length) {
     console.log("\n✅ FILE ASSOCIATION SYSTEM IS WORKING CORRECTLY\n");
     console.log("   You can now:");
-    console.log("   • Double-click .json files to open them in PEIPL Bill Assistant");
-    console.log("   • Double-click .peiplbill files to open them in PEIPL Bill Assistant\n");
+    console.log(
+      "   • Double-click .json files to open them in PEIPL Bill Assistant",
+    );
+    console.log(
+      "   • Double-click .peiplbill files to open them in PEIPL Bill Assistant\n",
+    );
   } else if (successCount > 0) {
     console.log("\n⚠️  PARTIAL SUCCESS - Some checks failed");
-    console.log("   This is normal if running without Administrator privileges.");
+    console.log(
+      "   This is normal if running without Administrator privileges.",
+    );
     console.log("   The file associations may still be working.\n");
   } else {
     console.log("\n❌ FILE ASSOCIATION SYSTEM IS NOT SET UP");
     console.log("   To fix this, try one of the following:\n");
     console.log("   Option 1: Run the setup from within PEIPL Bill Assistant");
-    console.log("            Look for 'File Associations Setup' in the settings\n");
+    console.log(
+      "            Look for 'File Associations Setup' in the settings\n",
+    );
     console.log("   Option 2: Run as Administrator");
-    console.log("            Right-click Command Prompt → Run as Administrator");
+    console.log(
+      "            Right-click Command Prompt → Run as Administrator",
+    );
     console.log("            Then run: node test-file-associations.js\n");
     console.log("   Option 3: Manual setup");
     console.log("            Run PowerShell as Administrator and execute:");
     if (appExePath) {
       console.log(`            ftype PEIPLBillMaker="${appExePath}" "%%1"`);
     } else {
-      console.log(`            ftype PEIPLBillMaker="C:\\path\\to\\PEIPL Bill Assistant.exe" "%%1"`);
+      console.log(
+        `            ftype PEIPLBillMaker="C:\\path\\to\\PEIPL Bill Assistant.exe" "%%1"`,
+      );
     }
     console.log("            assoc .peiplbill=PEIPLBillMaker");
     console.log("            assoc .json=PEIPLBillMaker\n");
@@ -136,5 +163,7 @@ function finishDiagnostics() {
 
   console.log("╔════════════════════════════════════════════════════════════╗");
   console.log("║  DIAGNOSTIC TEST COMPLETE                                ║");
-  console.log("╚════════════════════════════════════════════════════════════╝\n");
+  console.log(
+    "╚════════════════════════════════════════════════════════════╝\n",
+  );
 }

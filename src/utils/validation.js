@@ -102,7 +102,10 @@ export const validateBillNumber = (billNumber) => {
   }
 
   if (trimmed.length > 50) {
-    return { valid: false, error: "Bill number is too long (max 50 characters)" };
+    return {
+      valid: false,
+      error: "Bill number is too long (max 50 characters)",
+    };
   }
 
   // Check for special characters that might cause issues
@@ -133,7 +136,10 @@ export const validateCustomerName = (name) => {
   }
 
   if (trimmed.length > 200) {
-    return { valid: false, error: "Customer name is too long (max 200 characters)" };
+    return {
+      valid: false,
+      error: "Customer name is too long (max 200 characters)",
+    };
   }
 
   return { valid: true };

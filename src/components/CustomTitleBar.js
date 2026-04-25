@@ -3,8 +3,8 @@
 import { useState, useEffect, memo } from "react";
 import TitleBarMenu from "./TitleBarMenu";
 
-function CustomTitleBar({ 
-  onToggleSidebar, 
+function CustomTitleBar({
+  onToggleSidebar,
   sidebarOpen,
   onGenerateBill,
   onOpenBill,
@@ -13,13 +13,11 @@ function CustomTitleBar({
   onShowBillFolderTracker,
   onShowFileAssociationSetup,
   isLoading,
-  showTooltips
+  showTooltips,
+  hasUnsavedChanges = false,
 }) {
   const [isMaximized, setIsMaximized] = useState(false);
   const [isElectron, setIsElectron] = useState(false);
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [windowTitle, setWindowTitle] = useState("PEIPL Bill Manager");
-  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     // Check if running in Electron
@@ -91,7 +89,7 @@ function CustomTitleBar({
 
   return (
     <div
-      className="fixed top-0 left-0 right-0 h-10 bg-gradient-to-r from-[#0f766e] via-[#138d84] to-[#0d9488] z-[100] flex items-center justify-between px-4 select-none no-print shadow-lg"
+      className="fixed top-0 left-0 right-0 h-10 bg-[var(--color-surface)] border-b border-[var(--color-border-light)] z-[100] flex items-center justify-between px-4 select-none no-print shadow-sm"
       style={{
         WebkitAppRegion: "drag",
         appRegion: "drag",
@@ -106,7 +104,7 @@ function CustomTitleBar({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="w-8 h-8 flex items-center justify-center text-white hover:bg-white/20 active:bg-white/30 transition-all duration-200 rounded-sm group cursor-pointer"
+            className="w-8 h-8 flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] active:bg-[var(--color-border-light)] transition-all duration-200 rounded-md group cursor-pointer"
             title={sidebarOpen ? "Close sidebar" : "Open sidebar"}
             style={{
               background: "transparent",
@@ -117,69 +115,68 @@ function CustomTitleBar({
             }}
           >
             <svg
-              width="20"
-              height="20"
+              width="18"
+              height="18"
               viewBox="0 0 24 24"
               fill="none"
               className="group-hover:scale-110 transition-transform"
-              style={{ pointerEvents: "none" }}
             >
-              {sidebarOpen ? (
-                <>
-                  <path
+              {sidebarOpen
+                ? <path
                     d="M6 6L18 18M18 6L6 18"
                     stroke="currentColor"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                   />
-                </>
-              ) : (
-                <>
-                  <path
+                : <path
                     d="M3 6h18M3 12h18M3 18h18"
                     stroke="currentColor"
                     strokeWidth="2.5"
                     strokeLinecap="round"
-                  />
-                </>
-              )}
+                  />}
             </svg>
           </button>
-        )}{" "}
-        {/* TitleBar Menu */}
-        <TitleBarMenu
-          onGenerateBill={onGenerateBill}
-          onOpenBill={onOpenBill}
-          onSaveBill={onSaveBill}
-          onShowUserManual={onShowUserManual}
-          onShowBillFolderTracker={onShowBillFolderTracker}
-          onShowFileAssociationSetup={onShowFileAssociationSetup}
-          isLoading={isLoading}
-          showTooltips={showTooltips}
-        />
-        <div className="flex items-center gap-2">
-          <div className="w-6 h-6 flex items-center justify-center">
-            <img
-              src="./logo.png"
-              alt="PEIPL"
-              className="w-5 h-5 object-contain"
-            />
-          </div>
-          <span className="text-white text-xs font-semibold tracking-wide">
-            PEIPL Bill Assistant
-          </span>
+        )}
+
+        <div className="flex items-center gap-2 px-1">
+          <img
+            src="./logo.png"
+            alt="PEIPL Logo"
+            width={18}
+            height={18}
+            className="object-contain"
+          />
+          <TitleBarMenu
+            onGenerateBill={onGenerateBill}
+            onOpenBill={onOpenBill}
+            onSaveBill={onSaveBill}
+            onShowUserManual={onShowUserManual}
+            onShowBillFolderTracker={onShowBillFolderTracker}
+            onShowFileAssociationSetup={onShowFileAssociationSetup}
+            isLoading={isLoading}
+            showTooltips={showTooltips}
+          />
         </div>
+      </div>
+
+      {/* Middle side - App title */}
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+        <span className="text-[var(--color-text-main)] font-bold text-xs tracking-wide">
+          PEIPL Bill Assistant
+        </span>
+        {hasUnsavedChanges && (
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+        )}
       </div>
 
       {/* Right side - Window controls */}
       <div
-        className="flex items-center gap-1"
+        className="flex items-center"
         style={{ WebkitAppRegion: "no-drag", appRegion: "no-drag" }}
       >
-        {/* Minimize button */}
         <button
           onClick={handleMinimize}
-          className="titlebar-button w-10 h-10 flex items-center justify-center text-white hover:bg-white/20 active:bg-white/30 transition-all duration-200 rounded-sm group cursor-pointer"
+          className="titlebar-button w-10 h-10 flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] transition-all duration-200"
           title="Minimize"
           style={{
             background: "transparent",
@@ -190,26 +187,24 @@ function CustomTitleBar({
           }}
         >
           <svg
-            width="16"
-            height="16"
+            width="12"
+            height="12"
             viewBox="0 0 12 12"
             fill="none"
-            className="group-hover:scale-110 transition-transform"
             style={{ pointerEvents: "none" }}
           >
             <path
               d="M2 6h8"
-              stroke="white"
-              strokeWidth="2.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
               strokeLinecap="round"
             />
           </svg>
         </button>
 
-        {/* Maximize/Restore button */}
         <button
           onClick={handleMaximize}
-          className="titlebar-button w-10 h-10 flex items-center justify-center text-white hover:bg-white/20 active:bg-white/30 transition-all duration-200 rounded-sm group cursor-pointer"
+          className="titlebar-button w-10 h-10 flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-alt)] hover:text-[var(--color-text-main)] transition-all duration-200"
           title={isMaximized ? "Restore" : "Maximize"}
           style={{
             background: "transparent",
@@ -219,47 +214,43 @@ function CustomTitleBar({
             boxShadow: "none",
           }}
         >
-          {isMaximized ? (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 12 12"
-              fill="none"
-              className="group-hover:scale-110 transition-transform"
-              style={{ pointerEvents: "none" }}
-            >
-              <path
-                d="M3 3h3v3H3V3zM6 6h3v3H6V6z"
-                stroke="white"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          ) : (
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 12 12"
-              fill="none"
-              className="group-hover:scale-110 transition-transform"
-              style={{ pointerEvents: "none" }}
-            >
-              <path
-                d="M2 2h8v8H2V2z"
-                stroke="white"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+          {isMaximized
+            ? <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                style={{ pointerEvents: "none" }}
+              >
+                <path
+                  d="M3 3h3v3H3V3zM6 6h3v3H6V6z"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            : <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                style={{ pointerEvents: "none" }}
+              >
+                <rect
+                  x="2.5"
+                  y="2.5"
+                  width="7"
+                  height="7"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                />
+              </svg>}
         </button>
 
-        {/* Close button */}
         <button
           onClick={handleClose}
-          className="titlebar-button w-10 h-10 flex items-center justify-center text-white hover:bg-red-500 active:bg-red-600 transition-all duration-200 rounded-sm group cursor-pointer"
+          className="titlebar-button w-10 h-10 flex items-center justify-center text-[var(--color-text-secondary)] hover:bg-red-500 hover:text-white transition-all duration-200"
           title="Close"
           style={{
             background: "transparent",
@@ -270,17 +261,16 @@ function CustomTitleBar({
           }}
         >
           <svg
-            width="16"
-            height="16"
+            width="12"
+            height="12"
             viewBox="0 0 12 12"
             fill="none"
-            className="group-hover:scale-110 transition-transform"
             style={{ pointerEvents: "none" }}
           >
             <path
               d="M3 3l6 6M9 3l-6 6"
-              stroke="white"
-              strokeWidth="2.5"
+              stroke="currentColor"
+              strokeWidth="1.5"
               strokeLinecap="round"
             />
           </svg>

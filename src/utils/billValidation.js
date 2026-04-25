@@ -11,7 +11,7 @@ export function validateCompleteBillData(billData, companyInfo) {
   }
 
   // Required fields
-  if (!billData.billNumber || billData.billNumber.trim() === '') {
+  if (!billData.billNumber || billData.billNumber.trim() === "") {
     errors.push("Bill number is required");
   }
 
@@ -22,31 +22,31 @@ export function validateCompleteBillData(billData, companyInfo) {
   } else {
     // Validate each item
     billData.items.forEach((item, index) => {
-      if (!item.description || item.description.trim() === '') {
+      if (!item.description || item.description.trim() === "") {
         errors.push(`Item ${index + 1}: Description is required`);
       }
-      
+
       // Handle both array and single value for quantity
       const quantity = item.quantity;
       if (!quantity) {
         errors.push(`Item ${index + 1}: Quantity is required`);
       } else if (Array.isArray(quantity)) {
-        if (quantity.every(q => !q || q.trim() === '')) {
+        if (quantity.every((q) => !q || q.trim() === "")) {
           errors.push(`Item ${index + 1}: At least one quantity is required`);
         }
-      } else if (typeof quantity === 'string' && quantity.trim() === '') {
+      } else if (typeof quantity === "string" && quantity.trim() === "") {
         errors.push(`Item ${index + 1}: Quantity is required`);
       }
-      
+
       // Handle both array and single value for rate
       const rate = item.rate;
       if (!rate) {
         errors.push(`Item ${index + 1}: Rate is required`);
       } else if (Array.isArray(rate)) {
-        if (rate.every(r => !r || r.trim() === '')) {
+        if (rate.every((r) => !r || r.trim() === "")) {
           errors.push(`Item ${index + 1}: At least one rate is required`);
         }
-      } else if (typeof rate === 'string' && rate.trim() === '') {
+      } else if (typeof rate === "string" && rate.trim() === "") {
         errors.push(`Item ${index + 1}: Rate is required`);
       }
     });
@@ -56,24 +56,26 @@ export function validateCompleteBillData(billData, companyInfo) {
   if (!companyInfo) {
     warnings.push("Company information is not set");
   } else {
-    if (!companyInfo.name || companyInfo.name.trim() === '') {
+    if (!companyInfo.name || companyInfo.name.trim() === "") {
       warnings.push("Company name is not set");
     }
-    if (!companyInfo.address || companyInfo.address.trim() === '') {
+    if (!companyInfo.address || companyInfo.address.trim() === "") {
       warnings.push("Company address is not set");
     }
   }
 
   // Check for potential issues
   if (billData.items && billData.items.length > 50) {
-    warnings.push("Bill contains more than 50 items - consider splitting into multiple bills");
+    warnings.push(
+      "Bill contains more than 50 items - consider splitting into multiple bills",
+    );
   }
 
   return {
     isValid: errors.length === 0,
     errors,
     warnings,
-    itemCount: billData.items?.length || 0
+    itemCount: billData.items?.length || 0,
   };
 }
 
