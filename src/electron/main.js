@@ -30,7 +30,7 @@ function createSplashScreen() {
 
   const splashUrl = isDev
     ? `file://${path.join(__dirname, 'splash.html')}`
-    : `file://${path.join(__dirname, '../../dist/splash.html')}`;
+    : `file://${path.join(__dirname, '../dist/splash.html')}`;
   
   splash.loadURL(splashUrl);
 }
@@ -91,7 +91,7 @@ function createWindow() {
 
   const url = isDev
     ? 'http://localhost:5173'
-    : `file://${path.join(__dirname, '../../dist/index.html')}`;
+    : `file://${path.join(__dirname, '../dist/index.html')}`;
 
   mainWindow.loadURL(url);
 

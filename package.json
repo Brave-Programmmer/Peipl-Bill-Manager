@@ -18,6 +18,11 @@
     "directories": {
       "output": "dist-electron"
     },
+    "files": [
+      "dist/**/*",
+      "src/electron/**/*",
+      "package.json"
+    ],
     "fileAssociations": [
       {
         "ext": "peiplbill",
