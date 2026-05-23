@@ -1,0 +1,88 @@
+{
+  "name": "peipl-bill",
+  "private": true,
+  "version": "1.0.0",
+  "main": "src/electron/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
+    "dev:vite": "vite",
+    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "build": "vite build && electron-builder",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "build": {
+    "appId": "com.peipl.bill",
+    "productName": "PEIPL BILL",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "fileAssociations": [
+      {
+        "ext": "peiplbill",
+        "name": "PEIPL Bill File",
+        "role": "Editor"
+      },
+      {
+        "ext": "json",
+        "name": "JSON Invoice",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/assets/logo.png"
+    },
+    "extraResources": [
+      {
+        "from": "src/assets",
+        "to": "assets",
+        "filter": [
+          "**/*.png",
+          "**/*.jpg",
+          "**/*.jpeg",
+          "**/*.ico"
+        ]
+      }
+    ]
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.25",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.3.0",
+    "electron-is-dev": "^3.0.1",
+    "electron-store": "^11.0.2",
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^1.16.0",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-hook-form": "^7.76.0",
+    "react-router-dom": "^7.15.1",
+    "tailwind-merge": "^3.6.0",
+    "zustand": "^5.0.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^42.2.0",
+    "electron-builder": "^26.8.1",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^4.3.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12",
+    "wait-on": "^9.0.10"
+  }
+}

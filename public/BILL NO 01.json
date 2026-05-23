@@ -1,0 +1,222 @@
+{
+  "billNumber": "PEIPLCH2627/01",
+  "date": "2026-04-07",
+  "customerName": "RASHTRIYA CHEMICALS & FERTILIZERS LTD",
+  "plantName": "N.N.A. PLANT",
+  "customerAddress": "TROMBAY UNIT\nMUMBAI.400 074",
+  "customerPhone": "",
+  "customerGST": "27AAACR2831H1ZK",
+  "items": [
+    {
+      "id": 1,
+      "description": "MPNA PRDS 40 ata line.",
+      "sacHsn": "998719",
+      "quantity": 1,
+      "unit": "PCS",
+      "rate": "6156.82",
+      "amount": 6156.82,
+      "cgstRate": 9,
+      "cgstAmount": 554.11,
+      "sgstRate": 9,
+      "sgstAmount": 554.11,
+      "totalWithGST": 7265.04,
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "01) 02/03/26",
+      "refNo": "2.1.A.2.3"
+    },
+    {
+      "id": "17755514802372e4ql40z5",
+      "srNoDate": "02) 02/03/26",
+      "refNo": "2.1.A.2.3",
+      "description": "MPNA PRDS area 40 ata line",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "rate": [
+        "6156.82"
+      ],
+      "amount": [
+        6156.82
+      ],
+      "cgstAmount": [
+        554.11
+      ],
+      "sgstAmount": [
+        554.11
+      ],
+      "totalWithGST": [
+        7265.04
+      ]
+    },
+    {
+      "id": "17755515000146mosfqyff",
+      "description": "MPNA PRDS 40 ata line.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "3705.30"
+      ],
+      "amount": [
+        3705.3
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        333.48
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        333.48
+      ],
+      "totalWithGST": [
+        4372.26
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "03) 05/03/26",
+      "refNo": "2.1.A.2.2"
+    },
+    {
+      "id": "1775551500014h5rpgq7f2",
+      "description": "MPNA PRDS 40 ta line valve",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "1020.26"
+      ],
+      "amount": [
+        1020.26
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        91.82
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        91.82
+      ],
+      "totalWithGST": [
+        1203.9
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "04) 05/03/26",
+      "refNo": "5.1.A.2"
+    },
+    {
+      "id": "1775551500014umubrl0ah",
+      "description": "MPNA PRDS 20 ata line flange.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "3705.30"
+      ],
+      "amount": [
+        3705.3
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        333.48
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        333.48
+      ],
+      "totalWithGST": [
+        4372.26
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "05) 06/03/26",
+      "refNo": "2.A.2.2"
+    },
+    {
+      "id": "1775551500014g4c2gf5xe",
+      "description": "MP PRDS 20 ata 2/v gland",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "1020.26"
+      ],
+      "amount": [
+        1020.26
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        91.82
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        91.82
+      ],
+      "totalWithGST": [
+        1203.9
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "06) 06/03/26",
+      "refNo": "5.1.A.2"
+    },
+    {
+      "id": "1775551500014wgd3honz3",
+      "description": "MPNA 20 ata NRV in PRDS area",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "3705.30"
+      ],
+      "amount": [
+        3705.3
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        333.48
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        333.48
+      ],
+      "totalWithGST": [
+        4372.26
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "07) 06/03/26",
+      "refNo": "2.A.2.2"
+    }
+  ],
+  "companyInfo": {
+    "name": "PUJARI ENGINEERS INDIA (P) LTD.",
+    "services": "ONLINE LEAK SEALING • INSULATION HOT TIGHTING • METAL STITCHING • SPARE PARTS SUPPLIERS & LABOUR SUPPLIERS",
+    "address": "B-21, Flat No.101, Siddeshwar Co-op Hsg. Soc; Sector-9, Gharonda, Ghansoli, Navi, Mumbai -400 701.",
+    "phone": "9820027556",
+    "email": "spujari79@gmail.com",
+    "gst": "27AADCP2938G1ZD",
+    "pan": "AADCP2938G"
+  },
+  "savedAt": "2026-04-30T08:21:19.978Z",
+  "version": "2.5.0",
+  "itemCount": 7
+}

@@ -1,0 +1,385 @@
+{
+  "billNumber": "PEIPLCH2627/02",
+  "date": "2026-04-07",
+  "customerName": "RASHTRIYA CHEMICALS & FERTILIZERS LTD",
+  "plantName": "AMMONIA V PLANT",
+  "customerAddress": "TROMBAY UNIT\nMUMBAI.400 074",
+  "customerPhone": "",
+  "customerGST": "27AAACR2831H1ZK",
+  "items": [
+    {
+      "id": 1,
+      "description": "PGR Ammonia condensate cooler i/l line pinhole leak.",
+      "sacHsn": [
+        "998719",
+        "4006",
+        "73079990"
+      ],
+      "quantity": [
+        "1",
+        "3",
+        "15\""
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93",
+        "1621.20",
+        "839.66"
+      ],
+      "amount": [
+        6816.93,
+        4863.6,
+        12594.9
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        613.52,
+        613.52,
+        613.52
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        613.52,
+        613.52,
+        613.52
+      ],
+      "totalWithGST": [
+        8043.97,
+        8043.97,
+        8043.97
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "01) 27/01/26",
+      "refNo": [
+        "1.1",
+        "1.4",
+        "7.A.2.2"
+      ]
+    },
+    {
+      "id": "17755524407491uh9silre",
+      "description": "CO2 comp. antisurge c/v heating steam line pinhole leak.",
+      "sacHsn": [
+        "998719",
+        "4006",
+        "73079990"
+      ],
+      "quantity": [
+        "1",
+        "1",
+        "6\""
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93",
+        "1621.20",
+        "795.03"
+      ],
+      "amount": [
+        6816.93,
+        1621.2,
+        4770.18
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        613.52,
+        613.52,
+        613.52
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        613.52,
+        613.52,
+        613.52
+      ],
+      "totalWithGST": [
+        8043.97,
+        8043.97,
+        8043.97
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "02) 03/02/26",
+      "refNo": [
+        "1.1",
+        "1.4",
+        "7.A.1.1"
+      ]
+    },
+    {
+      "id": "1775552440749i357uxhz3",
+      "description": "CO2 Comp. antisurge c/v heating steam line re injection.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "1658.56"
+      ],
+      "amount": [
+        1658.56
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        149.27
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        149.27
+      ],
+      "totalWithGST": [
+        1957.1
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "03) 07/02/26",
+      "refNo": "4.2.A.1"
+    },
+    {
+      "id": "1775552440749i1r2rsixc",
+      "description": " LT (main) o/l line i/v d/s flange leak.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "9281.94"
+      ],
+      "amount": [
+        9281.94
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        835.37
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        835.37
+      ],
+      "totalWithGST": [
+        10952.68
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "04) 07/02/26",
+      "refNo": "2.1.A.2.5"
+    },
+    {
+      "id": "1775552440749vcpju9jcp",
+      "description": "03 LIC -103 d/s i/v gland leak.(reinjection)",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "1020.26"
+      ],
+      "amount": [
+        1020.26
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        91.82
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        91.82
+      ],
+      "totalWithGST": [
+        1203.9
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "05) 16/02/26",
+      "refNo": "5.1.A.2"
+    },
+    {
+      "id": "1775552440749v5bsz9vpu",
+      "description": "P-301/302 PT line leak.",
+      "sacHsn": [
+        "998719",
+        "4006"
+      ],
+      "quantity": [
+        "2",
+        "2"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93",
+        "1621.20"
+      ],
+      "amount": [
+        13633.86,
+        3242.4
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        1227.05,
+        1227.05
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        1227.05,
+        1227.05
+      ],
+      "totalWithGST": [
+        16087.96,
+        16087.96
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "06) 23/02/26",
+      "refNo": [
+        "1.1",
+        "1.4"
+      ]
+    },
+    {
+      "id": "1775552440749xdhcfczzm",
+      "description": "P-304 support plate hole drilled for dep. stick.",
+      "sacHsn": "998719",
+      "quantity": [
+        "0.5"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93"
+      ],
+      "amount": [
+        3408.47
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        306.76
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        306.76
+      ],
+      "totalWithGST": [
+        4021.99
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "07) 23/02/26",
+      "refNo": "1.1"
+    },
+    {
+      "id": "1775552440749vky12gh3t",
+      "description": "E-201 (PGR) steam i/l i/v gland leak.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "1008.84"
+      ],
+      "amount": [
+        1008.84
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        90.8
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        90.8
+      ],
+      "totalWithGST": [
+        1190.44
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "08) 27/02/26",
+      "refNo": "5.1.A.1"
+    },
+    {
+      "id": "1775552440749tgm2i0cjs",
+      "description": "PACC 1 lab seal locking screw removal.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93"
+      ],
+      "amount": [
+        6816.93
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        613.52
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        613.52
+      ],
+      "totalWithGST": [
+        8043.97
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "09) 25/03/26",
+      "refNo": "1.1"
+    },
+    {
+      "id": "17755524407496jst3ma8c",
+      "description": "PAC C2 lab seal locking screw removal.",
+      "sacHsn": "998719",
+      "quantity": [
+        "1"
+      ],
+      "unit": "PCS",
+      "rate": [
+        "6816.93"
+      ],
+      "amount": [
+        6816.93
+      ],
+      "cgstRate": 9,
+      "cgstAmount": [
+        613.52
+      ],
+      "sgstRate": 9,
+      "sgstAmount": [
+        613.52
+      ],
+      "totalWithGST": [
+        8043.97
+      ],
+      "dates": [
+        "2026-04-07"
+      ],
+      "srNoDate": "10) 26/03/26",
+      "refNo": "1.1"
+    }
+  ],
+  "companyInfo": {
+    "name": "PUJARI ENGINEERS INDIA (P) LTD.",
+    "services": "ONLINE LEAK SEALING • INSULATION HOT TIGHTING • METAL STITCHING • SPARE PARTS SUPPLIERS & LABOUR SUPPLIERS",
+    "address": "B-21, Flat No.101, Siddeshwar Co-op Hsg. Soc; Sector-9, Gharonda, Ghansoli, Navi, Mumbai -400 701.",
+    "phone": "9820027556",
+    "email": "spujari79@gmail.com",
+    "gst": "27AADCP2938G1ZD",
+    "pan": "AADCP2938G"
+  },
+  "savedAt": "2026-04-07T09:43:41.223Z",
+  "version": "2.5.0",
+  "itemCount": 10
+}
