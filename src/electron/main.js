@@ -399,7 +399,7 @@ ipcMain.handle('print-to-pdf', async (event, data) => {
 
   const url = isDev
     ? `http://localhost:5173/#/print-export`
-    : `file://${path.join(__dirname, '../../dist/index.html')}#/print-export`;
+    : `file://${path.join(__dirname, '../dist/index.html')}#/print-export`;
 
   printWin.loadURL(url);
 
@@ -470,7 +470,7 @@ ipcMain.handle('print-window', async (event, data) => {
 
   const url = isDev
     ? `http://localhost:5173/#/print-export`
-    : `file://${path.join(__dirname, '../../dist/index.html')}#/print-export`;
+    : `file://${path.join(__dirname, '../dist/index.html')}#/print-export`;
 
   printWin.loadURL(url);
 
